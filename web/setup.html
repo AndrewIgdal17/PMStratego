@@ -1,0 +1,26 @@
+<!-- web/setup.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stratego — Setup</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="setup">
+    <h1>Arrange your army</h1>
+    <div class="setup-controls">
+      <button data-formation="random">Random</button>
+      <button data-formation="defensive">Defensive</button>
+      <button data-formation="aggressive">Aggressive</button>
+      <button id="clear-btn">Clear</button>
+    </div>
+    <div id="tray" class="tray"></div>
+    <div id="territory-grid" class="territory-grid"></div>
+    <button id="submit-setup-btn" disabled>Submit setup</button>
+    <p id="setup-status" class="result" hidden></p>
+  </main>
+  <script type="module" src="js/setup.js"></script>
+</body>
+</html>

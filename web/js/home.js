@@ -1,7 +1,8 @@
 import { callFunction } from "./supabaseClient.js";
 
-function storeToken(roomCode, token) {
+function storeSession(roomCode, token, slot) {
   localStorage.setItem(`stratego:${roomCode}:token`, token);
+  localStorage.setItem(`stratego:${roomCode}:slot`, String(slot));
 }
 
 document.getElementById("new-game-btn").addEventListener("click", async () => {
@@ -10,7 +11,7 @@ document.getElementById("new-game-btn").addEventListener("click", async () => {
   button.disabled = true;
   try {
     const { roomCode, token, invitePath } = await callFunction("create-game", {});
-    storeToken(roomCode, token);
+    storeSession(roomCode, token, 1);
     const inviteUrl = `${location.origin}${invitePath}`;
     resultEl.hidden = false;
     resultEl.innerHTML = `Room created! Send this link to your friend: <a href="${inviteUrl}">${inviteUrl}</a>`;
@@ -30,7 +31,7 @@ document.getElementById("join-form").addEventListener("submit", async (event) =>
   errorEl.hidden = true;
   try {
     const { token } = await callFunction("join-game", { roomCode });
-    storeToken(roomCode, token);
+    storeSession(roomCode, token, 2);
     location.href = `setup.html?code=${roomCode}`;
   } catch (err) {
     errorEl.hidden = false;
