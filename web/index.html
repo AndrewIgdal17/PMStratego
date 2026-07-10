@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stratego</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="home">
+    <h1>Stratego</h1>
+    <section class="panel">
+      <h2>Start a new game</h2>
+      <button id="new-game-btn">New Game</button>
+      <p id="new-game-result" class="result" hidden></p>
+    </section>
+    <section class="panel">
+      <h2>Join a game</h2>
+      <form id="join-form">
+        <input id="room-code-input" placeholder="Room code" maxlength="8" autocapitalize="characters" required />
+        <button type="submit">Join</button>
+      </form>
+      <p id="join-error" class="error" hidden></p>
+    </section>
+  </main>
+  <script type="module" src="js/home.js"></script>
+</body>
+</html>
