@@ -11,7 +11,17 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export async function callFunction(name, body) {
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
-    const message = data?.error ?? error.message ?? "UNKNOWN_ERROR";
+    let message = error.message ?? "UNKNOWN_ERROR";
+    if (error.context && typeof error.context.json === "function") {
+      try {
+        const errorBody = await error.context.json();
+        message = errorBody?.error ?? message;
+      } catch {
+        // response body wasn't JSON (or context.json() failed) -- fall back to error.message
+      }
+    } else if (data?.error) {
+      message = data.error;
+    }
     throw new Error(message);
   }
   return data;
