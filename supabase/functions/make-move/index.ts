@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     pieces: pieceRows.map((p) => ({
       id: p.id,
       playerSlot: p.player_slot,
-      rank: p.rank,
+      rank: p.rank === "BOMB" || p.rank === "FLAG" ? p.rank : Number(p.rank),
       row: p.row_idx,
       col: p.col_idx,
       alive: p.alive,
@@ -149,10 +149,16 @@ Deno.serve(async (req) => {
     if (needsReveal) {
       patch.revealed_rank = updated.rank;
     }
-    await supabase.from("pieces").update(patch).eq("id", updated.id);
+    const { error: pieceUpdateError } = await supabase.from("pieces").update(patch).eq("id", updated.id);
+    if (pieceUpdateError) {
+      return new Response(
+        JSON.stringify({ error: "PIECE_UPDATE_FAILED", detail: pieceUpdateError.message }),
+        { status: 500 },
+      );
+    }
   }
 
-  await supabase
+  const { error: gameUpdateError } = await supabase
     .from("games")
     .update({
       current_turn_slot: result.newState.currentTurnSlot,
@@ -162,6 +168,13 @@ Deno.serve(async (req) => {
       updated_at: new Date().toISOString(),
     })
     .eq("id", gameId);
+
+  if (gameUpdateError) {
+    return new Response(
+      JSON.stringify({ error: "GAME_STATE_UPDATE_FAILED", detail: gameUpdateError.message }),
+      { status: 500 },
+    );
+  }
 
   return new Response(
     JSON.stringify({ ok: true, combatResult: result.combatResult, winnerSlot: result.winnerSlot }),
