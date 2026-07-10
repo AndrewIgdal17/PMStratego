@@ -2325,11 +2325,15 @@ const ABSOLUTE_ROWS = slot === 1 ? [9, 8, 7, 6] : [0, 1, 2, 3]; // index 0 = nea
 return { rank, row: ABSOLUTE_ROWS[localRow], col };
 ```
 
-- [ ] **Step 4: Manual verification**
+- [ ] **Step 4: Deviation — fix a cross-deployment-boundary import bug**
+
+`web/js/setup.js` importing `ARMY_COMPOSITION` from `../../src/rules/pieces.js` (a path outside `web/`) works when the whole repo is served together locally, but breaks in production: Render serves `web/` as its OWN site root (per Task 18's `staticPublishPath: ./web`), so any path escaping that directory 404s — this mirrors the exact problem Task 8 already solved for the Deno Edge Functions by copying the rules engine into `supabase/functions/_shared/rules/`. Apply the same pattern: create `web/js/rules/` containing verbatim copies of `src/rules/board.js` and `src/rules/pieces.js` (plus a README noting the duplication, mirroring `supabase/functions/_shared/rules/README.md`), and change the setup screen's import to `./rules/pieces.js`. The board.js copy is included now even though only pieces.js is needed yet, because the game screen (Task 16) will need `board.js` for the same reason and should import from this same `web/js/rules/` directory rather than rediscovering this bug.
+
+- [ ] **Step 5: Manual verification**
 
 With both `home.js` and `setup.js` updated, repeat the two-browser flow: create a game in one browser tab (slot 1), open the invite link in a private/incognito window (slot 2), click **Random** in both, submit both, and confirm both redirect to `game.html` without a `WRONG_ARMY_COMPOSITION` or `OUTSIDE_TERRITORY` error.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add web/setup.html web/js/setup.js web/js/home.js
@@ -2386,6 +2390,7 @@ git commit -m "feat: setup screen with shuffle/preset/manual placement"
 // web/js/game.js
 import { supabase, callFunction } from "./supabaseClient.js";
 import { BOARD_SIZE, isLake } from "../../src/rules/board.js";
+// [Deviation note: import from `./rules/board.js` instead — see Task 15's Step 4 deviation note for why `../../src/rules/*.js` doesn't work once `web/` is deployed as its own site root.]
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");

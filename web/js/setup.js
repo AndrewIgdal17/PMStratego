@@ -1,6 +1,6 @@
 // web/js/setup.js
 import { callFunction } from "./supabaseClient.js";
-import { ARMY_COMPOSITION } from "../../src/rules/pieces.js";
+import { ARMY_COMPOSITION } from "./rules/pieces.js";
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
