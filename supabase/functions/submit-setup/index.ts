@@ -98,11 +98,18 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "INSERT_FAILED", detail: insertError.message }), { status: 500 });
   }
 
-  await supabase
+  const { error: submitFlagError } = await supabase
     .from("game_players")
     .update({ setup_submitted: true })
     .eq("game_id", playerRow.game_id)
     .eq("player_slot", playerRow.player_slot);
+
+  if (submitFlagError) {
+    return new Response(
+      JSON.stringify({ error: "SETUP_FLAG_UPDATE_FAILED", detail: submitFlagError.message }),
+      { status: 500 },
+    );
+  }
 
   const { data: allPlayers } = await supabase
     .from("game_players")
@@ -113,10 +120,17 @@ Deno.serve(async (req) => {
 
   if (bothReady) {
     const firstTurnSlot = Math.random() < 0.5 ? 1 : 2;
-    await supabase
+    const { error: activateError } = await supabase
       .from("games")
       .update({ status: "active", current_turn_slot: firstTurnSlot, turn_number: 1 })
       .eq("id", playerRow.game_id);
+
+    if (activateError) {
+      return new Response(
+        JSON.stringify({ error: "GAME_ACTIVATION_FAILED", detail: activateError.message }),
+        { status: 500 },
+      );
+    }
   }
 
   return new Response(JSON.stringify({ ok: true, gameStarted: bothReady }), {
