@@ -53,6 +53,13 @@ function renderTray() {
     });
     tray.appendChild(chip);
   }
+
+  if (selectedRank && (remaining.get(selectedRank) ?? 0) > 0) {
+    const selectedChip = tray.querySelector(`[data-rank="${selectedRank}"]`);
+    if (selectedChip) selectedChip.classList.add("selected");
+  } else {
+    selectedRank = null;
+  }
 }
 
 function highlightSelectedChip(chip) {
