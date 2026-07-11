@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: stratego
+    runtime: static
+    staticPublishPath: ./web
+    buildCommand: "echo 'no build step'"
+    pullRequestPreviewsEnabled: false
