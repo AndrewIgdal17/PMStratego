@@ -1,15 +1,32 @@
 // web/js/setup.js
-import { callFunction } from "./supabaseClient.js";
+import { supabase, callFunction } from "./supabaseClient.js";
 import { ARMY_COMPOSITION } from "./rules/pieces.js";
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
-const token = localStorage.getItem(`stratego:${roomCode}:token`);
+const isJoining = params.get("join") === "1";
 
-if (!token) {
+async function ensureSession() {
+  let token = localStorage.getItem(`stratego:${roomCode}:token`);
+  if (token) return token;
+
+  if (isJoining) {
+    try {
+      const result = await callFunction("join-game", { roomCode });
+      localStorage.setItem(`stratego:${roomCode}:token`, result.token);
+      localStorage.setItem(`stratego:${roomCode}:slot`, "2");
+      return result.token;
+    } catch (err) {
+      document.body.innerHTML = `<p>Could not join this game: ${err.message}</p>`;
+      throw err;
+    }
+  }
+
   document.body.innerHTML = "<p>No access token found for this room. Use the link your friend sent you, or create a new game from the home page.</p>";
   throw new Error("missing token");
 }
+
+const token = await ensureSession();
 
 // This browser's player slot was stored by home.js when the room was created
 // (slot 1) or joined (slot 2). The setup grid always draws "row 0" as the
@@ -172,6 +189,18 @@ document.getElementById("submit-setup-btn").addEventListener("click", async () =
       : "Setup submitted. Waiting for your opponent...";
     if (result.gameStarted) {
       location.href = `game.html?code=${roomCode}`;
+    } else {
+      const { data: gameRow } = await supabase.from("games").select("id").eq("room_code", roomCode).single();
+      if (gameRow) {
+        supabase
+          .channel(`setup-wait-${gameRow.id}`)
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameRow.id}` }, (payload) => {
+            if (payload.new.status === "active") {
+              location.href = `game.html?code=${roomCode}`;
+            }
+          })
+          .subscribe();
+      }
     }
   } catch (err) {
     statusEl.hidden = false;
