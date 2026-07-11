@@ -36,7 +36,7 @@ const token = await ensureSession();
 // slot 2), and slot 1's territory is drawn top-to-bottom OPPOSITE to slot
 // 2's -- so we need this mapping before sending placements to the server.
 const slot = Number(localStorage.getItem(`stratego:${roomCode}:slot`));
-const ABSOLUTE_ROWS = slot === 1 ? [9, 8, 7, 6] : [0, 1, 2, 3]; // index 0 = nearest midline, for both slots
+const ABSOLUTE_ROWS = slot === 1 ? [6, 7, 8, 9] : [3, 2, 1, 0]; // index 0 = nearest midline, for both slots
 
 const LOCAL_ROWS = [0, 1, 2, 3];
 const COLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
