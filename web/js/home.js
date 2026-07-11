@@ -14,7 +14,28 @@ document.getElementById("new-game-btn").addEventListener("click", async () => {
     storeSession(roomCode, token, 1);
     const inviteUrl = `${location.origin}${invitePath}`;
     resultEl.hidden = false;
-    resultEl.innerHTML = `Room created! Send this link to your friend:<br><a href="${inviteUrl}">${inviteUrl}</a><br><br><button id="continue-to-setup-btn" class="btn-primary">Continue to setup</button>`;
+    resultEl.innerHTML = `
+      <p class="success-text">Room created!</p>
+      <p class="room-code-label">Room code:</p>
+      <div class="room-code-box">${roomCode}</div>
+      <div class="copy-buttons">
+        <button id="copy-link-btn" class="copy-btn">Copy Link</button>
+        <button id="copy-code-btn" class="copy-btn">Copy Code</button>
+      </div>
+      <button id="continue-to-setup-btn" class="btn-primary" style="width:100%;margin-top:0.75rem;">Continue to setup</button>
+    `;
+    document.getElementById("copy-link-btn").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(inviteUrl);
+      const btn = document.getElementById("copy-link-btn");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy Link"; }, 1500);
+    });
+    document.getElementById("copy-code-btn").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(roomCode);
+      const btn = document.getElementById("copy-code-btn");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy Code"; }, 1500);
+    });
     document.getElementById("continue-to-setup-btn").addEventListener("click", () => {
       location.href = `setup.html?code=${roomCode}`;
     });
