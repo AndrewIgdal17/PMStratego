@@ -130,13 +130,27 @@ Deno.serve(async (req) => {
     });
   }
 
-  for (const updated of result.newState.pieces) {
-    const original = state.pieces.find((p) => p.id === updated.id)!;
-    const moved = updated.row !== original.row || updated.col !== original.col;
-    const died = updated.alive !== original.alive;
+  const pieceUpdates = result.newState.pieces
+    .map((updated) => {
+      const original = state.pieces.find((p) => p.id === updated.id)!;
+      return {
+        updated,
+        moved: updated.row !== original.row || updated.col !== original.col,
+        died: updated.alive !== original.alive,
+      };
+    })
+    .filter((entry) => entry.moved || entry.died);
 
-    if (!moved && !died) continue;
+  // Apply deaths before moves so a captured piece's square is vacated
+  // (alive flips to false) before any surviving piece's move can land on
+  // that same square -- otherwise the pieces_alive_position_idx unique
+  // index (game_id, row_idx, col_idx) WHERE alive can be violated by two
+  // alive rows momentarily sharing a square across two separate UPDATE
+  // statements (this is exactly what caused winning attacks to 500 in
+  // production when the attacker happened to be processed first).
+  pieceUpdates.sort((a, b) => Number(b.died) - Number(a.died));
 
+  for (const { updated } of pieceUpdates) {
     const patch = {
       row_idx: updated.row,
       col_idx: updated.col,
