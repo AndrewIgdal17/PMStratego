@@ -22,6 +22,14 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: corsHeaders });
   }
 
+  let isBotGame = false;
+  try {
+    const body = await req.json();
+    isBotGame = body?.isBotGame === true;
+  } catch {
+    // no JSON body sent (e.g. a plain create-game call with no bot flag) -- default false
+  }
+
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   let roomCode = generateRoomCode();
@@ -30,7 +38,7 @@ Deno.serve(async (req) => {
   for (let attempt = 0; attempt < 5 && !gameId; attempt++) {
     const { data, error } = await supabase
       .from("games")
-      .insert({ room_code: roomCode })
+      .insert({ room_code: roomCode, is_bot_game: isBotGame })
       .select("id")
       .single();
 
