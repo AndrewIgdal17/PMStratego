@@ -61,13 +61,17 @@ Deno.serve(async (req) => {
 
   const { data: moveRows, error: movesError } = await supabase
     .from("moves")
-    .select("piece_id, player_slot, from_row, from_col, to_row, to_col")
+    .select("piece_id, player_slot, from_row, from_col, to_row, to_col, move_number")
     .eq("game_id", gameId)
     .order("move_number", { ascending: true });
 
   if (movesError) {
     return new Response(JSON.stringify({ error: "HISTORY_LOAD_FAILED" }), { status: 500, headers: corsHeaders });
   }
+
+  const nextMoveNumber = moveRows && moveRows.length > 0
+    ? moveRows[moveRows.length - 1].move_number + 1
+    : 1;
 
   const moveHistoryByPlayer: Record<number, { pieceId: string; from: string; to: string }[]> = { 1: [], 2: [] };
   for (const m of moveRows ?? []) {
@@ -107,7 +111,7 @@ Deno.serve(async (req) => {
   const { error: moveInsertError } = await supabase.from("moves").insert({
     game_id: gameId,
     piece_id: movedPiece.id,
-    move_number: game.turn_number,
+    move_number: nextMoveNumber,
     player_slot: playerSlot,
     from_row: from.row,
     from_col: from.col,
@@ -126,37 +130,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Combat always reveals BOTH participants' identity to both players, even
-  // the side that wins and stays in place without moving or dying (e.g. a
-  // defender that survives an attack). Track both combat participant IDs
-  // separately from the moved/died check below, which only covers position
-  // and life-state changes.
-  const revealedPieceIds = new Set<string>();
-  if (result.combatResult) {
-    revealedPieceIds.add(movedPiece.id);
-    const defenderId = state.pieces.find(
-      (p) => p.alive && p.row === to.row && p.col === to.col && p.id !== movedPiece.id,
-    )?.id;
-    if (defenderId) revealedPieceIds.add(defenderId);
-  }
-
   for (const updated of result.newState.pieces) {
     const original = state.pieces.find((p) => p.id === updated.id)!;
     const moved = updated.row !== original.row || updated.col !== original.col;
     const died = updated.alive !== original.alive;
-    const needsReveal = revealedPieceIds.has(updated.id);
 
-    if (!moved && !died && !needsReveal) continue;
+    if (!moved && !died) continue;
 
-    const patch: Record<string, unknown> = {};
-    if (moved || died) {
-      patch.row_idx = updated.row;
-      patch.col_idx = updated.col;
-      patch.alive = updated.alive;
-    }
-    if (needsReveal) {
-      patch.revealed_rank = updated.rank;
-    }
+    const patch = {
+      row_idx: updated.row,
+      col_idx: updated.col,
+      alive: updated.alive,
+    };
     const { error: pieceUpdateError } = await supabase.from("pieces").update(patch).eq("id", updated.id);
     if (pieceUpdateError) {
       return new Response(
@@ -170,7 +155,7 @@ Deno.serve(async (req) => {
     .from("games")
     .update({
       current_turn_slot: result.newState.currentTurnSlot,
-      turn_number: game.turn_number + 1,
+      turn_number: nextMoveNumber + 1,
       status: result.newState.status,
       winner_slot: result.winnerSlot ?? null,
       updated_at: new Date().toISOString(),
