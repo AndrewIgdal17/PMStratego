@@ -32,6 +32,7 @@ if (!token) {
 
 let gameRow = null;
 let piecesById = new Map();
+let gameId = null;
 let selectedPieceId = null;
 const BOT_SLOT = 2;
 let botMoveScheduled = false;
@@ -220,6 +221,7 @@ async function handleCellClick(row, col, piece) {
       alert(`Move rejected: ${err.message}`);
     }
     await refreshState();
+    await refreshGameRow(gameId);
     return;
   }
 
@@ -264,7 +266,7 @@ document.getElementById("resign-btn").addEventListener("click", async () => {
 });
 
 async function init() {
-  const gameId = await loadGameId();
+  gameId = await loadGameId();
   await refreshGameRow(gameId);
   await refreshState();
   await refreshMoveLog(gameId);
