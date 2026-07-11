@@ -73,15 +73,21 @@ function renderTray() {
   tray.innerHTML = "";
   const remaining = remainingByRank();
   for (const [rank, count] of remaining) {
-    if (count <= 0) continue;
+    // Show all piece types, dim the exhausted ones
     const chip = document.createElement("button");
     chip.className = "tray-chip";
+    if (count <= 0) {
+      chip.classList.add("exhausted");
+      chip.disabled = true;
+    }
     chip.textContent = `${RANK_NAME[rank] ?? rank} x${count}`;
     chip.dataset.rank = rank;
-    chip.addEventListener("click", () => {
-      selectedRank = rank;
-      highlightSelectedChip(chip);
-    });
+    if (count > 0) {
+      chip.addEventListener("click", () => {
+        selectedRank = rank;
+        highlightSelectedChip(chip);
+      });
+    }
     tray.appendChild(chip);
   }
 
@@ -133,7 +139,11 @@ function renderGrid() {
 }
 
 function updateSubmitButton() {
-  document.getElementById("submit-setup-btn").disabled = placements.size !== totalPieces();
+  const total = totalPieces();
+  const placed = placements.size;
+  const btn = document.getElementById("submit-setup-btn");
+  btn.disabled = placed !== total;
+  btn.textContent = placed === total ? "Submit setup" : `Submit setup (${placed}/${total})`;
 }
 
 function applyFormation(name) {
@@ -227,3 +237,4 @@ document.getElementById("submit-setup-btn").addEventListener("click", async () =
 
 renderGrid();
 renderTray();
+updateSubmitButton();
