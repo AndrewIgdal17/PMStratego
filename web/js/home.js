@@ -14,7 +14,7 @@ document.getElementById("new-game-btn").addEventListener("click", async () => {
     storeSession(roomCode, token, 1);
     const inviteUrl = `${location.origin}${invitePath}`;
     resultEl.hidden = false;
-    resultEl.innerHTML = `Room created! Send this link to your friend: <a href="${inviteUrl}">${inviteUrl}</a><br><button id="continue-to-setup-btn">Continue to setup</button>`;
+    resultEl.innerHTML = `Room created! Send this link to your friend:<br><a href="${inviteUrl}">${inviteUrl}</a><br><br><button id="continue-to-setup-btn" class="btn-primary">Continue to setup</button>`;
     document.getElementById("continue-to-setup-btn").addEventListener("click", () => {
       location.href = `setup.html?code=${roomCode}`;
     });

@@ -121,7 +121,7 @@ function renderBoard() {
     for (let col = 0; col < BOARD_SIZE; col++) {
       const cell = document.createElement("div");
       cell.className = "board-cell";
-      if (isLake(row, col)) cell.classList.add("lake");
+      if (isLake(row, col)) { cell.classList.add("lake"); cell.textContent = "~"; }
 
       const piece = [...piecesById.values()].find((p) => p.row_idx === row && p.col_idx === col && p.alive);
       if (piece) {
