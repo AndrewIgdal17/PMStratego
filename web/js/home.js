@@ -1,4 +1,5 @@
 import { callFunction } from "./supabaseClient.js";
+import { pickBotFormationPlacements } from "./bot.js";
 
 function storeSession(roomCode, token, slot) {
   localStorage.setItem(`stratego:${roomCode}:token`, token);
@@ -59,5 +60,26 @@ document.getElementById("join-form").addEventListener("submit", async (event) =>
   } catch (err) {
     errorEl.hidden = false;
     errorEl.textContent = `Could not join: ${err.message}`;
+  }
+});
+
+document.getElementById("play-bot-btn").addEventListener("click", async () => {
+  const button = document.getElementById("play-bot-btn");
+  const resultEl = document.getElementById("play-bot-error");
+  button.disabled = true;
+  try {
+    const { roomCode, token } = await callFunction("create-game", { isBotGame: true });
+    storeSession(roomCode, token, 1);
+
+    const { token: botToken } = await callFunction("join-game", { roomCode });
+    localStorage.setItem(`stratego:${roomCode}:botToken`, botToken);
+    const placements = pickBotFormationPlacements();
+    await callFunction("submit-setup", { token: botToken, placements });
+
+    location.href = `setup.html?code=${roomCode}`;
+  } catch (err) {
+    resultEl.hidden = false;
+    resultEl.textContent = `Failed to start bot game: ${err.message}`;
+    button.disabled = false;
   }
 });
