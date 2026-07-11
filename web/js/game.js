@@ -1,6 +1,24 @@
 import { supabase, callFunction } from "./supabaseClient.js";
 import { BOARD_SIZE, isLake } from "./rules/board.js";
 
+const RANK_SHORT = {
+  '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
+  '5': 'Cp', '6': 'Lt', '7': 'Sg', '8': 'Mi',
+  '9': 'Sc', '10': 'Sp', 'BOMB': 'B', 'FLAG': 'F',
+  1: 'Ma', 2: 'Ge', 3: 'Co', 4: 'Mj',
+  5: 'Cp', 6: 'Lt', 7: 'Sg', 8: 'Mi',
+  9: 'Sc', 10: 'Sp',
+};
+
+const RANK_NAME = {
+  '1': 'Marshal', '2': 'General', '3': 'Colonel', '4': 'Major',
+  '5': 'Captain', '6': 'Lieutenant', '7': 'Sergeant', '8': 'Miner',
+  '9': 'Scout', '10': 'Spy', 'BOMB': 'Bomb', 'FLAG': 'Flag',
+  1: 'Marshal', 2: 'General', 3: 'Colonel', 4: 'Major',
+  5: 'Captain', 6: 'Lieutenant', 7: 'Sergeant', 8: 'Miner',
+  9: 'Scout', 10: 'Spy',
+};
+
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
 const token = localStorage.getItem(`stratego:${roomCode}:token`);
@@ -69,7 +87,7 @@ async function refreshMoveLog(gameId) {
     const from = `${m.from_row},${m.from_col}`;
     const to = `${m.to_row},${m.to_col}`;
     if (m.move_type === "attack") {
-      li.textContent = `${who}: ${from} -> ${to} (${m.attacker_rank} vs ${m.defender_rank}: ${m.outcome})`;
+      li.textContent = `${who}: ${from} -> ${to} (${RANK_NAME[m.attacker_rank] ?? m.attacker_rank} vs ${RANK_NAME[m.defender_rank] ?? m.defender_rank}: ${m.outcome})`;
     } else {
       li.textContent = `${who}: ${from} -> ${to}`;
     }
@@ -108,7 +126,7 @@ function renderBoard() {
       const piece = [...piecesById.values()].find((p) => p.row_idx === row && p.col_idx === col && p.alive);
       if (piece) {
         cell.classList.add(piece.is_mine ? "mine" : "enemy");
-        cell.textContent = piece.rank ?? "?";
+        cell.textContent = piece.rank != null ? (RANK_SHORT[piece.rank] ?? piece.rank) : "?";
         if (piece.piece_id === selectedPieceId) cell.classList.add("selected");
       }
 

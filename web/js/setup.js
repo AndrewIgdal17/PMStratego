@@ -40,6 +40,18 @@ const ABSOLUTE_ROWS = slot === 1 ? [9, 8, 7, 6] : [0, 1, 2, 3]; // index 0 = nea
 const LOCAL_ROWS = [0, 1, 2, 3];
 const COLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
+const RANK_NAME = {
+  '1': 'Marshal', '2': 'General', '3': 'Colonel', '4': 'Major',
+  '5': 'Captain', '6': 'Lieutenant', '7': 'Sergeant', '8': 'Miner',
+  '9': 'Scout', '10': 'Spy', 'BOMB': 'Bomb', 'FLAG': 'Flag',
+};
+
+const RANK_SHORT = {
+  '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
+  '5': 'Cp', '6': 'Lt', '7': 'Sg', '8': 'Mi',
+  '9': 'Sc', '10': 'Sp', 'BOMB': 'B', 'FLAG': 'F',
+};
+
 let placements = new Map(); // key "row,col" -> rank
 
 function totalPieces() {
@@ -62,7 +74,7 @@ function renderTray() {
     if (count <= 0) continue;
     const chip = document.createElement("button");
     chip.className = "tray-chip";
-    chip.textContent = `${rank} (${count})`;
+    chip.textContent = `${RANK_NAME[rank] ?? rank} x${count}`;
     chip.dataset.rank = rank;
     chip.addEventListener("click", () => {
       selectedRank = rank;
@@ -97,7 +109,7 @@ function renderGrid() {
       const key = `${row},${col}`;
       const rank = placements.get(key);
       if (rank) {
-        cell.textContent = rank;
+        cell.textContent = RANK_SHORT[rank] ?? rank;
         cell.classList.add("occupied");
       }
       cell.addEventListener("click", () => {
@@ -145,17 +157,24 @@ function applyFormation(name) {
     squares.forEach(([row, col], i) => placements.set(`${row},${col}`, ranks[i]));
   } else {
     const backRow = LOCAL_ROWS[LOCAL_ROWS.length - 1];
-    const frontRows = LOCAL_ROWS.slice(0, -1);
     const bombsAndFlag = ranks.filter((r) => r === "BOMB" || r === "FLAG");
     const rest = ranks.filter((r) => r !== "BOMB" && r !== "FLAG");
     rest.sort((a, b) => (name === "defensive" ? Number(b) - Number(a) : Number(a) - Number(b)));
 
-    const backSquares = COLS.map((col) => [backRow, col]);
-    bombsAndFlag.forEach((rank, i) => placements.set(`${backSquares[i][0]},${backSquares[i][1]}`, rank));
+    // Place bombs+flag on the back row first (7 items into 10 squares),
+    // then fill the remaining back-row squares + all front rows with the
+    // sorted combat pieces. This ensures all 40 squares are filled.
+    const allSquaresBackFirst = [];
+    for (const col of COLS) allSquaresBackFirst.push([backRow, col]);
+    for (const row of LOCAL_ROWS.slice(0, -1)) {
+      for (const col of COLS) allSquaresBackFirst.push([row, col]);
+    }
 
-    const frontSquares = [];
-    for (const row of frontRows) for (const col of COLS) frontSquares.push([row, col]);
-    rest.forEach((rank, i) => placements.set(`${frontSquares[i][0]},${frontSquares[i][1]}`, rank));
+    const ordered = [...bombsAndFlag, ...rest];
+    ordered.forEach((rank, i) => {
+      const [r, c] = allSquaresBackFirst[i];
+      placements.set(`${r},${c}`, rank);
+    });
   }
 
   renderGrid();

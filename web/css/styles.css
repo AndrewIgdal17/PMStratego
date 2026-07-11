@@ -106,6 +106,22 @@ button:hover {
   font-weight: bold;
 }
 
+.grid-label {
+  margin: 0.25rem 0;
+  font-size: 0.8rem;
+  font-style: italic;
+  opacity: 0.7;
+  text-align: center;
+}
+
+.enemy-label {
+  color: #d98b8b;
+}
+
+.back-label {
+  color: #a8c9a8;
+}
+
 .game {
   display: flex;
   gap: 1rem;
