@@ -1,6 +1,7 @@
 // supabase/functions/make-move/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { applyMove } from "../_shared/rules/game.js";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -11,13 +12,17 @@ interface Square {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405 });
+    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: corsHeaders });
   }
 
   const { token, from, to } = await req.json() as { token: string; from: Square; to: Square };
   if (!token || !from || !to) {
-    return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), { status: 400 });
+    return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), { status: 400, headers: corsHeaders });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -29,7 +34,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (playerError || !playerRow) {
-    return new Response(JSON.stringify({ error: "INVALID_TOKEN" }), { status: 401 });
+    return new Response(JSON.stringify({ error: "INVALID_TOKEN" }), { status: 401, headers: corsHeaders });
   }
 
   const gameId = playerRow.game_id;
@@ -42,7 +47,7 @@ Deno.serve(async (req) => {
     .single();
 
   if (gameError || !game) {
-    return new Response(JSON.stringify({ error: "GAME_NOT_FOUND" }), { status: 404 });
+    return new Response(JSON.stringify({ error: "GAME_NOT_FOUND" }), { status: 404, headers: corsHeaders });
   }
 
   const { data: pieceRows, error: piecesError } = await supabase
@@ -51,7 +56,7 @@ Deno.serve(async (req) => {
     .eq("game_id", gameId);
 
   if (piecesError || !pieceRows) {
-    return new Response(JSON.stringify({ error: "STATE_LOAD_FAILED" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "STATE_LOAD_FAILED" }), { status: 500, headers: corsHeaders });
   }
 
   const { data: moveRows, error: movesError } = await supabase
@@ -61,7 +66,7 @@ Deno.serve(async (req) => {
     .order("move_number", { ascending: true });
 
   if (movesError) {
-    return new Response(JSON.stringify({ error: "HISTORY_LOAD_FAILED" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "HISTORY_LOAD_FAILED" }), { status: 500, headers: corsHeaders });
   }
 
   const moveHistoryByPlayer: Record<number, { pieceId: string; from: string; to: string }[]> = { 1: [], 2: [] };
@@ -90,7 +95,7 @@ Deno.serve(async (req) => {
   const result = applyMove(state, { playerSlot, from, to });
 
   if (!result.ok) {
-    return new Response(JSON.stringify({ error: result.reason }), { status: 400 });
+    return new Response(JSON.stringify({ error: result.reason }), { status: 400, headers: corsHeaders });
   }
 
   const movedPiece = state.pieces.find(
@@ -115,7 +120,10 @@ Deno.serve(async (req) => {
   });
 
   if (moveInsertError) {
-    return new Response(JSON.stringify({ error: "MOVE_LOG_FAILED", detail: moveInsertError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "MOVE_LOG_FAILED", detail: moveInsertError.message }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 
   // Combat always reveals BOTH participants' identity to both players, even
@@ -153,7 +161,7 @@ Deno.serve(async (req) => {
     if (pieceUpdateError) {
       return new Response(
         JSON.stringify({ error: "PIECE_UPDATE_FAILED", detail: pieceUpdateError.message }),
-        { status: 500 },
+        { status: 500, headers: corsHeaders },
       );
     }
   }
@@ -172,12 +180,12 @@ Deno.serve(async (req) => {
   if (gameUpdateError) {
     return new Response(
       JSON.stringify({ error: "GAME_STATE_UPDATE_FAILED", detail: gameUpdateError.message }),
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
 
   return new Response(
     JSON.stringify({ ok: true, combatResult: result.combatResult, winnerSlot: result.winnerSlot }),
-    { headers: { "Content-Type": "application/json" } },
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });

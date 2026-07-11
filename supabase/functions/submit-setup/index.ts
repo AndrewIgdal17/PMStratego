@@ -1,6 +1,7 @@
 // supabase/functions/submit-setup/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { ARMY_COMPOSITION } from "../_shared/rules/pieces.js";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,13 +47,17 @@ function validatePlacements(playerSlot: number, placements: Placement[]): string
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405 });
+    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: corsHeaders });
   }
 
   const { token, placements } = await req.json();
   if (!token || !Array.isArray(placements)) {
-    return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), { status: 400 });
+    return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), { status: 400, headers: corsHeaders });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -64,10 +69,10 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (playerError || !playerRow) {
-    return new Response(JSON.stringify({ error: "INVALID_TOKEN" }), { status: 401 });
+    return new Response(JSON.stringify({ error: "INVALID_TOKEN" }), { status: 401, headers: corsHeaders });
   }
   if (playerRow.setup_submitted) {
-    return new Response(JSON.stringify({ error: "SETUP_ALREADY_SUBMITTED" }), { status: 409 });
+    return new Response(JSON.stringify({ error: "SETUP_ALREADY_SUBMITTED" }), { status: 409, headers: corsHeaders });
   }
 
   const { data: game, error: gameError } = await supabase
@@ -77,12 +82,12 @@ Deno.serve(async (req) => {
     .single();
 
   if (gameError || !game || game.status !== "setup") {
-    return new Response(JSON.stringify({ error: "GAME_NOT_IN_SETUP" }), { status: 409 });
+    return new Response(JSON.stringify({ error: "GAME_NOT_IN_SETUP" }), { status: 409, headers: corsHeaders });
   }
 
   const validationError = validatePlacements(playerRow.player_slot, placements);
   if (validationError) {
-    return new Response(JSON.stringify({ error: validationError }), { status: 400 });
+    return new Response(JSON.stringify({ error: validationError }), { status: 400, headers: corsHeaders });
   }
 
   const rows = placements.map((p: Placement) => ({
@@ -95,7 +100,10 @@ Deno.serve(async (req) => {
 
   const { error: insertError } = await supabase.from("pieces").insert(rows);
   if (insertError) {
-    return new Response(JSON.stringify({ error: "INSERT_FAILED", detail: insertError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "INSERT_FAILED", detail: insertError.message }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 
   const { error: submitFlagError } = await supabase
@@ -107,7 +115,7 @@ Deno.serve(async (req) => {
   if (submitFlagError) {
     return new Response(
       JSON.stringify({ error: "SETUP_FLAG_UPDATE_FAILED", detail: submitFlagError.message }),
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
 
@@ -119,7 +127,7 @@ Deno.serve(async (req) => {
   if (allPlayersError) {
     return new Response(
       JSON.stringify({ error: "READINESS_CHECK_FAILED", detail: allPlayersError.message }),
-      { status: 500 },
+      { status: 500, headers: corsHeaders },
     );
   }
 
@@ -135,12 +143,12 @@ Deno.serve(async (req) => {
     if (activateError) {
       return new Response(
         JSON.stringify({ error: "GAME_ACTIVATION_FAILED", detail: activateError.message }),
-        { status: 500 },
+        { status: 500, headers: corsHeaders },
       );
     }
   }
 
   return new Response(JSON.stringify({ ok: true, gameStarted: bothReady }), {
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });

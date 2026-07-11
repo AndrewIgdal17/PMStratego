@@ -1,4 +1,6 @@
+// supabase/functions/rematch/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -12,13 +14,17 @@ function generateRoomCode(): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405 });
+    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: corsHeaders });
   }
 
   const { token } = await req.json();
   if (!token) {
-    return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), { status: 400 });
+    return new Response(JSON.stringify({ error: "MISSING_FIELDS" }), { status: 400, headers: corsHeaders });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -30,7 +36,7 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (playerError || !playerRow) {
-    return new Response(JSON.stringify({ error: "INVALID_TOKEN" }), { status: 401 });
+    return new Response(JSON.stringify({ error: "INVALID_TOKEN" }), { status: 401, headers: corsHeaders });
   }
 
   const { data: oldGame, error: oldGameError } = await supabase
@@ -40,7 +46,7 @@ Deno.serve(async (req) => {
     .single();
 
   if (oldGameError || !oldGame || oldGame.status !== "finished") {
-    return new Response(JSON.stringify({ error: "GAME_NOT_FINISHED" }), { status: 409 });
+    return new Response(JSON.stringify({ error: "GAME_NOT_FINISHED" }), { status: 409, headers: corsHeaders });
   }
 
   const roomCode = generateRoomCode();
@@ -51,7 +57,10 @@ Deno.serve(async (req) => {
     .single();
 
   if (newGameError) {
-    return new Response(JSON.stringify({ error: "CREATE_FAILED", detail: newGameError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "CREATE_FAILED", detail: newGameError.message }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 
   const { data: newPlayerRow, error: newPlayerError } = await supabase
@@ -61,11 +70,14 @@ Deno.serve(async (req) => {
     .single();
 
   if (newPlayerError) {
-    return new Response(JSON.stringify({ error: "CREATE_PLAYER_FAILED", detail: newPlayerError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "CREATE_PLAYER_FAILED", detail: newPlayerError.message }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 
   return new Response(
     JSON.stringify({ roomCode, token: newPlayerRow.secret_token, yourSlot: 1 }),
-    { headers: { "Content-Type": "application/json" } },
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });

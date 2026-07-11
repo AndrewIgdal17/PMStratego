@@ -1,5 +1,6 @@
 // supabase/functions/create-game/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -13,8 +14,12 @@ function generateRoomCode(): string {
 }
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405 });
+    return new Response(JSON.stringify({ error: "METHOD_NOT_ALLOWED" }), { status: 405, headers: corsHeaders });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -35,12 +40,15 @@ Deno.serve(async (req) => {
       // room_code collision (astronomically unlikely at 8 chars) -- retry with a new code
       roomCode = generateRoomCode();
     } else {
-      return new Response(JSON.stringify({ error: "CREATE_GAME_FAILED", detail: error.message }), { status: 500 });
+      return new Response(JSON.stringify({ error: "CREATE_GAME_FAILED", detail: error.message }), {
+        status: 500,
+        headers: corsHeaders,
+      });
     }
   }
 
   if (!gameId) {
-    return new Response(JSON.stringify({ error: "ROOM_CODE_EXHAUSTED" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "ROOM_CODE_EXHAUSTED" }), { status: 500, headers: corsHeaders });
   }
 
   const { data: playerRow, error: playerError } = await supabase
@@ -50,7 +58,10 @@ Deno.serve(async (req) => {
     .single();
 
   if (playerError) {
-    return new Response(JSON.stringify({ error: "CREATE_PLAYER_FAILED", detail: playerError.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "CREATE_PLAYER_FAILED", detail: playerError.message }), {
+      status: 500,
+      headers: corsHeaders,
+    });
   }
 
   return new Response(
@@ -59,6 +70,6 @@ Deno.serve(async (req) => {
       token: playerRow.secret_token,
       invitePath: `/setup.html?code=${roomCode}&join=1`,
     }),
-    { headers: { "Content-Type": "application/json" } },
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } },
   );
 });
