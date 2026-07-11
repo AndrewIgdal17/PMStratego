@@ -1,6 +1,7 @@
 // web/js/setup.js
 import { supabase, callFunction } from "./supabaseClient.js";
 import { ARMY_COMPOSITION } from "./rules/pieces.js";
+import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
@@ -53,6 +54,7 @@ const RANK_SHORT = {
 };
 
 let placements = new Map(); // key "row,col" -> rank
+let formationIndex = { defensive: -1, aggressive: -1 };
 
 function totalPieces() {
   return ARMY_COMPOSITION.reduce((sum, e) => sum + e.count, 0);
@@ -136,50 +138,46 @@ function updateSubmitButton() {
 
 function applyFormation(name) {
   placements = new Map();
-  const squares = [];
-  for (const row of LOCAL_ROWS) {
-    for (const col of COLS) squares.push([row, col]);
-  }
-
-  // "random": shuffle all 40 ranks across all 40 squares.
-  // "defensive"/"aggressive": simple documented starting heuristics --
-  //   defensive keeps Bombs and the Flag on the back row (row 3, farthest
-  //   from the midline) with Miners just in front; aggressive pushes Scouts
-  //   and higher-value attackers toward the front row (row 0, nearest the
-  //   midline) with the Flag tucked on the back row flanked by two Bombs.
-  const ranks = ARMY_COMPOSITION.flatMap((e) => Array(e.count).fill(String(e.rank)));
 
   if (name === "random") {
+    const squares = [];
+    for (const row of LOCAL_ROWS) {
+      for (const col of COLS) squares.push([row, col]);
+    }
+    const ranks = ARMY_COMPOSITION.flatMap((e) => Array(e.count).fill(String(e.rank)));
     for (let i = ranks.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [ranks[i], ranks[j]] = [ranks[j], ranks[i]];
     }
     squares.forEach(([row, col], i) => placements.set(`${row},${col}`, ranks[i]));
+    updateFormationLabel("");
   } else {
-    const backRow = LOCAL_ROWS[LOCAL_ROWS.length - 1];
-    const bombsAndFlag = ranks.filter((r) => r === "BOMB" || r === "FLAG");
-    const rest = ranks.filter((r) => r !== "BOMB" && r !== "FLAG");
-    rest.sort((a, b) => (name === "defensive" ? Number(b) - Number(a) : Number(a) - Number(b)));
+    const catalog = name === "defensive" ? DEFENSIVE_FORMATIONS : AGGRESSIVE_FORMATIONS;
+    formationIndex[name] = (formationIndex[name] + 1) % catalog.length;
+    const formation = catalog[formationIndex[name]];
 
-    // Place bombs+flag on the back row first (7 items into 10 squares),
-    // then fill the remaining back-row squares + all front rows with the
-    // sorted combat pieces. This ensures all 40 squares are filled.
-    const allSquaresBackFirst = [];
-    for (const col of COLS) allSquaresBackFirst.push([backRow, col]);
-    for (const row of LOCAL_ROWS.slice(0, -1)) {
-      for (const col of COLS) allSquaresBackFirst.push([row, col]);
+    for (const [row, col, rank] of formation.cells) {
+      placements.set(`${row},${col}`, rank);
     }
-
-    const ordered = [...bombsAndFlag, ...rest];
-    ordered.forEach((rank, i) => {
-      const [r, c] = allSquaresBackFirst[i];
-      placements.set(`${r},${c}`, rank);
-    });
+    updateFormationLabel(`${formation.name} (${formationIndex[name] + 1}/${catalog.length})`);
   }
 
   renderGrid();
   renderTray();
   updateSubmitButton();
+}
+
+function updateFormationLabel(text) {
+  let label = document.getElementById("formation-label");
+  if (!label) {
+    label = document.createElement("p");
+    label.id = "formation-label";
+    label.className = "formation-label";
+    const grid = document.getElementById("territory-grid");
+    grid.parentNode.insertBefore(label, grid);
+  }
+  label.textContent = text;
+  label.hidden = !text;
 }
 
 document.querySelectorAll("[data-formation]").forEach((btn) => {
