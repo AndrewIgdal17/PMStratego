@@ -183,13 +183,21 @@ async function makeBotMove(gameId) {
   document.getElementById("turn-indicator").textContent = "Bot couldn't find a legal move — try Resign or Rematch.";
 }
 
+function toAbsolute(displayRow, displayCol) {
+  if (mySlot === 2) {
+    return { row: BOARD_SIZE - 1 - displayRow, col: BOARD_SIZE - 1 - displayCol };
+  }
+  return { row: displayRow, col: displayCol };
+}
+
 function renderBoard() {
   const board = document.getElementById("board");
   board.innerHTML = "";
   board.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 1fr)`;
 
-  for (let row = 0; row < BOARD_SIZE; row++) {
-    for (let col = 0; col < BOARD_SIZE; col++) {
+  for (let displayRow = 0; displayRow < BOARD_SIZE; displayRow++) {
+    for (let displayCol = 0; displayCol < BOARD_SIZE; displayCol++) {
+      const { row, col } = toAbsolute(displayRow, displayCol);
       const cell = document.createElement("div");
       cell.className = "board-cell";
       if (isLake(row, col)) { cell.classList.add("lake"); cell.textContent = "~"; }
@@ -211,6 +219,11 @@ async function handleCellClick(row, col, piece) {
   if (!gameRow || gameRow.status !== "active" || gameRow.current_turn_slot !== mySlot) return;
 
   if (selectedPieceId) {
+    if (piece && piece.is_mine) {
+      selectedPieceId = piece.piece_id;
+      renderBoard();
+      return;
+    }
     const selected = piecesById.get(selectedPieceId);
     const from = { row: selected.row_idx, col: selected.col_idx };
     const to = { row, col };
