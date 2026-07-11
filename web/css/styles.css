@@ -105,3 +105,65 @@ button:hover {
   background: #a8c9a8;
   font-weight: bold;
 }
+
+.game {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.board {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  background: var(--wood-dark);
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.board-cell {
+  aspect-ratio: 1;
+  background: var(--wood-light);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.board-cell.lake {
+  background: #2f5c3f;
+  cursor: default;
+}
+
+.board-cell.mine {
+  background: #a8c9a8;
+  font-weight: bold;
+}
+
+.board-cell.enemy {
+  background: #d98b8b;
+}
+
+.board-cell.selected {
+  outline: 3px solid gold;
+}
+
+.side-panel {
+  width: 260px;
+}
+
+.turn-indicator {
+  font-weight: bold;
+}
+
+#move-log, #chat-log {
+  list-style: none;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+}
