@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyMove } from '../../src/rules/game.js';
+import { applyMove, getLegalMoves } from '../../src/rules/game.js';
 import { RANK } from '../../src/rules/pieces.js';
 
 function baseState(pieces, overrides = {}) {
@@ -161,4 +161,28 @@ test('a player whose only remaining move is two-square-rule-blocked also loses',
   assert.equal(result.ok, true);
   assert.equal(result.winnerSlot, 1);
   assert.equal(result.newState.status, 'finished');
+});
+
+test('getLegalMoves returns an empty array when the player has no movable pieces', () => {
+  const pieces = [{ id: 'a', playerSlot: 1, rank: RANK.BOMB, row: 6, col: 5, alive: true }];
+  assert.deepEqual(getLegalMoves(pieces, 1, []), []);
+});
+
+test('getLegalMoves returns every legal destination for a movable piece', () => {
+  const pieces = [{ id: 'a', playerSlot: 1, rank: RANK.SERGEANT, row: 6, col: 5, alive: true }];
+  const moves = getLegalMoves(pieces, 1, []);
+  const destinations = moves.map((m) => `${m.to.row},${m.to.col}`).sort();
+  assert.deepEqual(destinations, ['5,5', '6,4', '6,6', '7,5']);
+  assert.ok(moves.every((m) => m.pieceId === 'a' && m.from.row === 6 && m.from.col === 5));
+});
+
+test('getLegalMoves excludes a destination that would violate the two-square rule', () => {
+  const pieces = [{ id: 'a', playerSlot: 1, rank: RANK.SERGEANT, row: 6, col: 5, alive: true }];
+  const history = [
+    { pieceId: 'a', from: '6,4', to: '6,5' },
+    { pieceId: 'a', from: '6,5', to: '6,4' },
+    { pieceId: 'a', from: '6,4', to: '6,5' },
+  ];
+  const moves = getLegalMoves(pieces, 1, history);
+  assert.equal(moves.some((m) => m.to.row === 6 && m.to.col === 4), false);
 });

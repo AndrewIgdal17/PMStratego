@@ -84,10 +84,11 @@ export function applyMove(state, { playerSlot, from, to }) {
   };
 }
 
-function hasAnyLegalMove(pieces, playerSlot, history) {
+export function getLegalMoves(pieces, playerSlot, history) {
   const movablePieces = pieces.filter(
     (p) => p.alive && p.playerSlot === playerSlot && p.rank !== RANK.BOMB && p.rank !== RANK.FLAG,
   );
+  const moves = [];
   for (const piece of movablePieces) {
     for (let row = 0; row < 10; row++) {
       for (let col = 0; col < 10; col++) {
@@ -96,9 +97,13 @@ function hasAnyLegalMove(pieces, playerSlot, history) {
         const fromKey = squareKey(piece.row, piece.col);
         const toKey = squareKey(row, col);
         if (violatesTwoSquareRule(history, piece.id, fromKey, toKey)) continue;
-        return true;
+        moves.push({ pieceId: piece.id, from: { row: piece.row, col: piece.col }, to: { row, col } });
       }
     }
   }
-  return false;
+  return moves;
+}
+
+function hasAnyLegalMove(pieces, playerSlot, history) {
+  return getLegalMoves(pieces, playerSlot, history).length > 0;
 }
