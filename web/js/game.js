@@ -53,6 +53,47 @@ function renderTurnIndicator() {
   el.textContent = gameRow.current_turn_slot === mySlot ? "Your turn" : "Waiting for opponent...";
 }
 
+async function refreshMoveLog(gameId) {
+  const { data, error } = await supabase
+    .from("moves")
+    .select("move_number, player_slot, from_row, from_col, to_row, to_col, move_type, outcome, attacker_rank, defender_rank")
+    .eq("game_id", gameId)
+    .order("move_number", { ascending: true });
+  if (error) return;
+
+  const list = document.getElementById("move-log");
+  list.innerHTML = "";
+  for (const m of data) {
+    const li = document.createElement("li");
+    const who = m.player_slot === mySlot ? "You" : "Opponent";
+    const from = `${m.from_row},${m.from_col}`;
+    const to = `${m.to_row},${m.to_col}`;
+    if (m.move_type === "attack") {
+      li.textContent = `${who}: ${from} -> ${to} (${m.attacker_rank} vs ${m.defender_rank}: ${m.outcome})`;
+    } else {
+      li.textContent = `${who}: ${from} -> ${to}`;
+    }
+    list.appendChild(li);
+  }
+}
+
+async function refreshChat(gameId) {
+  const { data, error } = await supabase
+    .from("chat_messages")
+    .select("player_slot, body, created_at")
+    .eq("game_id", gameId)
+    .order("created_at", { ascending: true });
+  if (error) return;
+
+  const list = document.getElementById("chat-log");
+  list.innerHTML = "";
+  for (const m of data) {
+    const li = document.createElement("li");
+    li.textContent = `${m.player_slot === mySlot ? "You" : "Opponent"}: ${m.body}`;
+    list.appendChild(li);
+  }
+}
+
 function renderBoard() {
   const board = document.getElementById("board");
   board.innerHTML = "";
@@ -100,23 +141,56 @@ async function handleCellClick(row, col, piece) {
   }
 }
 
+document.getElementById("chat-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = document.getElementById("chat-input");
+  const body = input.value.trim();
+  if (!body) return;
+  input.value = "";
+  try {
+    await callFunction("send-chat", { token, body });
+  } catch (err) {
+    alert(`Message failed: ${err.message}`);
+  }
+});
+
+document.getElementById("rematch-btn").addEventListener("click", async () => {
+  try {
+    const result = await callFunction("rematch", { token });
+    localStorage.setItem(`stratego:${result.roomCode}:token`, result.token);
+    localStorage.setItem(`stratego:${result.roomCode}:slot`, String(result.yourSlot));
+    alert(`Rematch created! Room code: ${result.roomCode}. Share it with your opponent, then wait for them to join before setup.`);
+    location.href = `setup.html?code=${result.roomCode}`;
+  } catch (err) {
+    alert(`Rematch failed: ${err.message}`);
+  }
+});
+
 document.getElementById("resign-btn").addEventListener("click", async () => {
   if (!confirm("Resign this game?")) return;
-  // Resigning is modeled as the resigning player's opponent winning; implemented
-  // as a dedicated Edge Function is out of scope for this task -- see Task 17.
-  alert("Resign is wired up in Task 17 alongside rematch.");
+  try {
+    await callFunction("resign", { token });
+  } catch (err) {
+    alert(`Resign failed: ${err.message}`);
+  }
 });
 
 async function init() {
   const gameId = await loadGameId();
   await refreshGameRow(gameId);
   await refreshState();
+  await refreshMoveLog(gameId);
+  await refreshChat(gameId);
 
   supabase
     .channel(`game-${gameId}`)
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, async () => {
       await refreshGameRow(gameId);
       await refreshState();
+      await refreshMoveLog(gameId);
+    })
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `game_id=eq.${gameId}` }, async () => {
+      await refreshChat(gameId);
     })
     .subscribe();
 }
