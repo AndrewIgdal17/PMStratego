@@ -37,10 +37,14 @@ Deno.serve(async (req) => {
 
   const winnerSlot = playerRow.player_slot === 1 ? 2 : 1;
 
-  await supabase
+  const { error: updateError } = await supabase
     .from("games")
     .update({ status: "finished", winner_slot: winnerSlot, updated_at: new Date().toISOString() })
     .eq("id", playerRow.game_id);
+
+  if (updateError) {
+    return new Response(JSON.stringify({ error: "RESIGN_UPDATE_FAILED", detail: updateError.message }), { status: 500 });
+  }
 
   return new Response(JSON.stringify({ ok: true, winnerSlot }), { headers: { "Content-Type": "application/json" } });
 });

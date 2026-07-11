@@ -111,10 +111,17 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data: allPlayers } = await supabase
+  const { data: allPlayers, error: allPlayersError } = await supabase
     .from("game_players")
     .select("setup_submitted")
     .eq("game_id", playerRow.game_id);
+
+  if (allPlayersError) {
+    return new Response(
+      JSON.stringify({ error: "READINESS_CHECK_FAILED", detail: allPlayersError.message }),
+      { status: 500 },
+    );
+  }
 
   const bothReady = allPlayers?.length === 2 && allPlayers.every((p) => p.setup_submitted);
 

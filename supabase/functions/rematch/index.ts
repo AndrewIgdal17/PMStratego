@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
 
   const { data: newPlayerRow, error: newPlayerError } = await supabase
     .from("game_players")
-    .insert({ game_id: newGame.id, player_slot: playerRow.player_slot })
+    .insert({ game_id: newGame.id, player_slot: 1 })
     .select("secret_token")
     .single();
 
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
   }
 
   return new Response(
-    JSON.stringify({ roomCode, token: newPlayerRow.secret_token, yourSlot: playerRow.player_slot }),
+    JSON.stringify({ roomCode, token: newPlayerRow.secret_token, yourSlot: 1 }),
     { headers: { "Content-Type": "application/json" } },
   );
 });
