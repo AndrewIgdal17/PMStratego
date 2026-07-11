@@ -1,5 +1,6 @@
 import { supabase, callFunction } from "./supabaseClient.js";
 import { BOARD_SIZE, isLake } from "./rules/board.js";
+import { chooseBotMove } from "./bot.js";
 
 const RANK_SHORT = {
   '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
@@ -32,6 +33,8 @@ if (!token) {
 let gameRow = null;
 let piecesById = new Map();
 let selectedPieceId = null;
+const BOT_SLOT = 2;
+let botMoveScheduled = false;
 
 async function loadGameId() {
   const { data, error } = await supabase.from("games").select("id").eq("room_code", roomCode).single();
@@ -52,12 +55,26 @@ async function refreshState() {
 async function refreshGameRow(gameId) {
   const { data, error } = await supabase
     .from("games")
-    .select("status, current_turn_slot, turn_number, winner_slot")
+    .select("status, current_turn_slot, turn_number, winner_slot, is_bot_game")
     .eq("id", gameId)
     .single();
   if (error) return;
   gameRow = data;
   renderTurnIndicator();
+
+  if (
+    gameRow.is_bot_game &&
+    gameRow.status === "active" &&
+    gameRow.current_turn_slot === BOT_SLOT &&
+    !botMoveScheduled
+  ) {
+    botMoveScheduled = true;
+    setTimeout(() => {
+      makeBotMove(gameId).finally(() => {
+        botMoveScheduled = false;
+      });
+    }, 1000);
+  }
 }
 
 function renderTurnIndicator() {
@@ -68,7 +85,13 @@ function renderTurnIndicator() {
     document.getElementById("rematch-btn").hidden = false;
     return;
   }
-  el.textContent = gameRow.current_turn_slot === mySlot ? "Your turn" : "Waiting for opponent...";
+  el.textContent = gameRow.current_turn_slot === mySlot
+    ? "Your turn"
+    : gameRow.is_bot_game ? "Bot's turn..." : "Waiting for opponent...";
+
+  if (gameRow.is_bot_game) {
+    document.getElementById("chat-form").hidden = true;
+  }
 }
 
 async function refreshMoveLog(gameId) {
@@ -83,7 +106,7 @@ async function refreshMoveLog(gameId) {
   list.innerHTML = "";
   for (const m of data) {
     const li = document.createElement("li");
-    const who = m.player_slot === mySlot ? "You" : "Opponent";
+    const who = m.player_slot === mySlot ? "You" : (gameRow?.is_bot_game ? "Bot" : "Opponent");
     const from = `${m.from_row},${m.from_col}`;
     const to = `${m.to_row},${m.to_col}`;
     if (m.move_type === "attack") {
@@ -110,6 +133,53 @@ async function refreshChat(gameId) {
     li.textContent = `${m.player_slot === mySlot ? "You" : "Opponent"}: ${m.body}`;
     list.appendChild(li);
   }
+}
+
+async function makeBotMove(gameId) {
+  const botToken = localStorage.getItem(`stratego:${roomCode}:botToken`);
+  if (!botToken) return;
+
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const { data: rows, error: stateError } = await supabase.rpc("get_game_state", { p_token: botToken });
+    if (stateError || !rows) {
+      console.warn("Bot state fetch failed, retrying:", stateError?.message ?? "no rows returned");
+      continue;
+    }
+
+    const { data: moveRows, error: movesError } = await supabase
+      .from("moves")
+      .select("piece_id, from_row, from_col, to_row, to_col")
+      .eq("game_id", gameId)
+      .eq("player_slot", BOT_SLOT)
+      .order("move_number", { ascending: true });
+
+    if (movesError) {
+      console.warn("Bot move-history fetch failed, retrying:", movesError.message);
+      continue;
+    }
+
+    const botHistory = (moveRows ?? []).map((m) => ({
+      pieceId: m.piece_id,
+      from: `${m.from_row},${m.from_col}`,
+      to: `${m.to_row},${m.to_col}`,
+    }));
+
+    const move = chooseBotMove(rows, BOT_SLOT, botHistory);
+    if (!move) return;
+
+    try {
+      await callFunction("make-move", { token: botToken, from: move.from, to: move.to });
+      await refreshState();
+      await refreshGameRow(gameId);
+      await refreshMoveLog(gameId);
+      return;
+    } catch (err) {
+      console.warn("Bot move rejected, retrying:", err.message);
+    }
+  }
+
+  document.getElementById("turn-indicator").textContent = "Bot couldn't find a legal move — try Resign or Rematch.";
 }
 
 function renderBoard() {
