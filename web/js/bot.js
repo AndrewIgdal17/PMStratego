@@ -132,15 +132,41 @@ export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficult
     }
   }
 
-  // Probe-when-idle: only applies when there's no winning move (i.e. we're
-  // choosing from the safe or losing pool) and a probe-eligible piece has
-  // a legal move onto a suspected square.
-  if (winning.length === 0 && suspects.size > 0 && rng() < PROBE_PROBABILITY[difficulty]) {
-    const probeMoves = safe.filter(
-      (move) => PROBE_ELIGIBLE_RANKS.has(movingPieceRank(move)) && isSuspectedSquare(suspects, pieces, move.to.row, move.to.col),
-    );
-    if (probeMoves.length > 0) {
+  const openGuardSquares = new Set(
+    guardStatuses.filter((s) => s.status === 'open').map((s) => `${s.row},${s.col}`),
+  );
+
+  if (winning.length === 0) {
+    let reinforceMoves = [];
+    if (openGuardSquares.size > 0) {
+      reinforceMoves = pool.filter(
+        (move) => openGuardSquares.has(`${move.to.row},${move.to.col}`),
+      );
+      const nonValuableReinforce = reinforceMoves.filter(
+        (move) => !VALUABLE_RANKS.has(movingPieceRank(move)),
+      );
+      if (nonValuableReinforce.length > 0) reinforceMoves = nonValuableReinforce;
+    }
+
+    let probeMoves = [];
+    if (suspects.size > 0 && rng() < PROBE_PROBABILITY[difficulty]) {
+      probeMoves = safe.filter(
+        (move) => PROBE_ELIGIBLE_RANKS.has(movingPieceRank(move)) && isSuspectedSquare(suspects, pieces, move.to.row, move.to.col),
+      );
+    }
+
+    if (reinforceMoves.length > 0 && probeMoves.length === 0) {
+      return reinforceMoves[Math.floor(rng() * reinforceMoves.length)];
+    }
+    if (probeMoves.length > 0 && reinforceMoves.length === 0) {
       return probeMoves[Math.floor(rng() * probeMoves.length)];
+    }
+    if (reinforceMoves.length > 0 && probeMoves.length > 0) {
+      // Personality tie-break (Task 6 will add the real logic; for now use neutral coin flip)
+      const first = rng() < 0.5 ? reinforceMoves : probeMoves;
+      const second = first === reinforceMoves ? probeMoves : reinforceMoves;
+      if (first.length > 0) return first[Math.floor(rng() * first.length)];
+      return second[Math.floor(rng() * second.length)];
     }
   }
 

@@ -185,3 +185,33 @@ test('chooseBotMove vacates an atRisk guard square when it is the only movable p
   assert.equal(move.pieceId, 'sergeant-1',
     'must vacate when it is the only movable piece');
 });
+
+test('chooseBotMove reinforces an open guard square when idle (no winning moves)', () => {
+  // Bot Flag at (0,5). Square (1,5) is open. Scout at (1,4) can move to (1,5).
+  // No enemy pieces in combat range, so no winning moves. Bot should fill the gap.
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 1, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-2', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 6, alive: true, is_mine: true },
+  ];
+  // rng() > any threshold to avoid probe logic interfering
+  const move = chooseBotMove(rows, 2, [], 'hard', 0, () => 0.99);
+  assert.deepEqual(move.to, { row: 1, col: 5 },
+    'should move to the open guard square');
+});
+
+test('chooseBotMove prefers a non-valuable piece for reinforcement', () => {
+  // Bot Flag at (0,5). Square (1,5) is open. Both a Marshal (valuable) at
+  // (1,4) and a Scout (non-valuable) at (2,5) can reach (1,5).
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'marshal-1', player_slot: 2, rank: '1', row_idx: 1, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 2, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-2', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 6, alive: true, is_mine: true },
+  ];
+  const move = chooseBotMove(rows, 2, [], 'hard', 0, () => 0.99);
+  assert.equal(move.pieceId, 'scout-1',
+    'should prefer the non-valuable piece for reinforcement');
+});
