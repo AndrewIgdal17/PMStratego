@@ -76,6 +76,11 @@ Deno.serve(async (req) => {
     });
   }
 
+  await supabase
+    .from("games")
+    .update({ rematch_room_code: roomCode, updated_at: new Date().toISOString() })
+    .eq("id", playerRow.game_id);
+
   return new Response(
     JSON.stringify({ roomCode, token: newPlayerRow.secret_token, yourSlot: 1 }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
