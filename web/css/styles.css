@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'TokenScript';
+  src: url('../fonts/UnifrakturMaguntia.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --wood-dark: #3e2f1c;
   --wood-light: #c9a876;
