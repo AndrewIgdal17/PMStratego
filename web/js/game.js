@@ -588,7 +588,7 @@ async function init() {
   supabase
     .channel(`game-${gameId}`)
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, async (payload) => {
-      if (payload.new.rematch_room_code && !isSpectator) {
+      if (payload.new.rematch_room_code && !isSpectator && payload.new.status === 'finished') {
         showRematchModal(payload.new.rematch_room_code);
       }
       await refreshGameRow(gameId);
