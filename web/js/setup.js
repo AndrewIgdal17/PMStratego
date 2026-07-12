@@ -262,6 +262,81 @@ document.getElementById("clear-btn").addEventListener("click", () => {
   updateSubmitButton();
 });
 
+let countdownInterval = null;
+let setupChannel = null;
+
+function disableSetupUI() {
+  document.getElementById("submit-setup-btn").hidden = true;
+  document.getElementById("unsubmit-btn").hidden = false;
+  document.querySelectorAll("[data-formation]").forEach((b) => b.disabled = true);
+  document.getElementById("clear-btn").disabled = true;
+}
+
+function enableSetupUI() {
+  document.getElementById("submit-setup-btn").hidden = false;
+  document.getElementById("unsubmit-btn").hidden = true;
+  document.getElementById("countdown-display").hidden = true;
+  document.querySelectorAll("[data-formation]").forEach((b) => b.disabled = false);
+  document.getElementById("clear-btn").disabled = false;
+  if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  renderGrid();
+  renderTray();
+  updateSubmitButton();
+}
+
+function startCountdown(bothSubmittedAt) {
+  const countdownEl = document.getElementById("countdown-display");
+  const statusEl = document.getElementById("setup-status");
+  countdownEl.hidden = false;
+  statusEl.hidden = false;
+  statusEl.textContent = "Both players ready!";
+
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  function tick() {
+    const elapsed = (Date.now() - new Date(bothSubmittedAt).getTime()) / 1000;
+    const remaining = Math.max(0, Math.ceil(10 - elapsed));
+    countdownEl.textContent = `Game starting in ${remaining}...`;
+
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      countdownEl.textContent = "Starting game...";
+      callFunction("start-game", { token }).then((result) => {
+        location.href = `game.html?code=${roomCode}`;
+      }).catch(() => {
+        location.href = `game.html?code=${roomCode}`;
+      });
+    }
+  }
+
+  tick();
+  countdownInterval = setInterval(tick, 1000);
+}
+
+async function subscribeToGameUpdates() {
+  const { data: gameRow } = await supabase.from("games").select("id").eq("room_code", roomCode).single();
+  if (!gameRow) return;
+
+  setupChannel = supabase
+    .channel(`setup-wait-${gameRow.id}`)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameRow.id}` }, (payload) => {
+      if (payload.new.status === "active") {
+        location.href = `game.html?code=${roomCode}`;
+      } else if (payload.new.both_submitted_at && !countdownInterval) {
+        startCountdown(payload.new.both_submitted_at);
+      } else if (!payload.new.both_submitted_at && countdownInterval) {
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        const countdownEl = document.getElementById("countdown-display");
+        countdownEl.hidden = true;
+        const statusEl = document.getElementById("setup-status");
+        statusEl.hidden = false;
+        statusEl.textContent = "Opponent is rearranging... waiting for them to resubmit.";
+      }
+    })
+    .subscribe();
+}
+
 document.getElementById("submit-setup-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("setup-status");
   const payload = Array.from(placements.entries()).map(([key, rank]) => {
@@ -272,27 +347,36 @@ document.getElementById("submit-setup-btn").addEventListener("click", async () =
   try {
     const result = await callFunction("submit-setup", { token, placements: payload });
     statusEl.hidden = false;
-    statusEl.textContent = result.gameStarted
-      ? "Both players ready! Loading game..."
-      : "Setup submitted. Waiting for your opponent...";
+
     if (result.gameStarted) {
+      statusEl.textContent = "Both players ready! Loading game...";
       location.href = `game.html?code=${roomCode}`;
     } else {
-      const { data: gameRow } = await supabase.from("games").select("id").eq("room_code", roomCode).single();
-      if (gameRow) {
-        supabase
-          .channel(`setup-wait-${gameRow.id}`)
-          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameRow.id}` }, (payload) => {
-            if (payload.new.status === "active") {
-              location.href = `game.html?code=${roomCode}`;
-            }
-          })
-          .subscribe();
+      disableSetupUI();
+      if (result.countdownStarted) {
+        startCountdown(new Date().toISOString());
+      } else {
+        statusEl.textContent = "Setup submitted. Waiting for your opponent...";
       }
+      await subscribeToGameUpdates();
     }
   } catch (err) {
     statusEl.hidden = false;
     statusEl.textContent = `Setup failed: ${err.message}`;
+  }
+});
+
+document.getElementById("unsubmit-btn").addEventListener("click", async () => {
+  const statusEl = document.getElementById("setup-status");
+  try {
+    await callFunction("unsubmit-setup", { token });
+    placements = new Map();
+    enableSetupUI();
+    statusEl.hidden = false;
+    statusEl.textContent = "Setup unsubmitted. Rearrange your army and resubmit.";
+  } catch (err) {
+    statusEl.hidden = false;
+    statusEl.textContent = `Unsubmit failed: ${err.message}`;
   }
 });
 
