@@ -517,7 +517,6 @@ document.getElementById("rematch-btn").addEventListener("click", async () => {
     const result = await callFunction("rematch", { token });
     localStorage.setItem(`stratego:${result.roomCode}:token`, result.token);
     localStorage.setItem(`stratego:${result.roomCode}:slot`, String(result.yourSlot));
-    alert(`Rematch created! Room code: ${result.roomCode}. Share it with your opponent, then wait for them to join before setup.`);
     location.href = `setup.html?code=${result.roomCode}`;
   } catch (err) {
     alert(`Rematch failed: ${err.message}`);
@@ -533,6 +532,35 @@ document.getElementById("resign-btn").addEventListener("click", async () => {
   }
 });
 
+let pendingRematchCode = null;
+
+function showRematchModal(newRoomCode) {
+  pendingRematchCode = newRoomCode;
+  document.getElementById("rematch-modal").hidden = false;
+}
+
+document.getElementById("accept-rematch-btn").addEventListener("click", async () => {
+  if (!pendingRematchCode) return;
+  const btn = document.getElementById("accept-rematch-btn");
+  btn.disabled = true;
+  btn.textContent = "Joining...";
+  try {
+    const { token: newToken } = await callFunction("join-game", { roomCode: pendingRematchCode });
+    localStorage.setItem(`stratego:${pendingRematchCode}:token`, newToken);
+    localStorage.setItem(`stratego:${pendingRematchCode}:slot`, "2");
+    location.href = `setup.html?code=${pendingRematchCode}`;
+  } catch (err) {
+    btn.textContent = "Accept";
+    btn.disabled = false;
+    alert(`Failed to join rematch: ${err.message}`);
+  }
+});
+
+document.getElementById("decline-rematch-btn").addEventListener("click", () => {
+  document.getElementById("rematch-modal").hidden = true;
+  pendingRematchCode = null;
+});
+
 async function init() {
   gameId = await loadGameId();
   await refreshGameRow(gameId);
@@ -542,7 +570,10 @@ async function init() {
 
   supabase
     .channel(`game-${gameId}`)
-    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, async () => {
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameId}` }, async (payload) => {
+      if (payload.new.rematch_room_code && !isSpectator) {
+        showRematchModal(payload.new.rematch_room_code);
+      }
       await refreshGameRow(gameId);
       await refreshState();
       await refreshMoveLog(gameId);
