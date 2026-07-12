@@ -766,6 +766,10 @@ button:active:not(:disabled) {
   z-index: 100;
 }
 
+.modal-overlay[hidden] {
+  display: none;
+}
+
 .modal-box {
   background: var(--wood-dark);
   border: 2px solid var(--wood-mid);
