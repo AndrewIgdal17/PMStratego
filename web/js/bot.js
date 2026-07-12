@@ -162,16 +162,13 @@ export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficult
       return probeMoves[Math.floor(rng() * probeMoves.length)];
     }
     if (reinforceMoves.length > 0 && probeMoves.length > 0) {
-      let first, second;
+      let first;
       if (personality === 'aggressive') {
         first = probeMoves;
-        second = reinforceMoves;
       } else if (personality === 'defensive') {
         first = reinforceMoves;
-        second = probeMoves;
       } else {
         first = rng() < 0.5 ? reinforceMoves : probeMoves;
-        second = first === reinforceMoves ? probeMoves : reinforceMoves;
       }
       return first[Math.floor(rng() * first.length)];
     }
