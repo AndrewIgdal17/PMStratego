@@ -379,22 +379,39 @@ function renderGraveyards(moveData) {
   if (moveData) {
     for (const m of moveData) {
       if (m.move_type !== 'attack') continue;
-      if (m.outcome === 'ATTACKER_WINS' || m.outcome === 'TIE') {
-        const defenderOnSquare = allPieces.find(
-          (p) => !p.alive && p.row_idx === m.to_row && p.col_idx === m.to_col && !p.is_mine
-        );
-        if (defenderOnSquare && !deadEnemyRanks.has(defenderOnSquare.piece_id)) {
-          deadEnemyRanks.set(defenderOnSquare.piece_id, String(m.defender_rank));
+
+      const attackerPiece = allPieces.find((p) => p.piece_id === m.piece_id);
+      const isMyAttack = attackerPiece && attackerPiece.is_mine;
+
+      if (m.outcome === 'ATTACKER_WINS') {
+        if (isMyAttack) {
+          const deadDefender = allPieces.find(
+            (p) => !p.alive && !p.is_mine && p.piece_id !== m.piece_id &&
+            p.row_idx === m.to_row && p.col_idx === m.to_col
+          );
+          if (deadDefender && !deadEnemyRanks.has(deadDefender.piece_id)) {
+            deadEnemyRanks.set(deadDefender.piece_id, String(m.defender_rank));
+          }
         }
-      }
-      if (m.outcome === 'DEFENDER_WINS' || m.outcome === 'TIE') {
-        const attackerDead = allPieces.find(
-          (p) => !p.alive && !p.is_mine && p.piece_id === allPieces.find(
-            (q) => !q.alive && q.row_idx === m.from_row && q.col_idx === m.from_col && !q.is_mine
-          )?.piece_id
-        );
-        if (attackerDead && !deadEnemyRanks.has(attackerDead.piece_id)) {
-          deadEnemyRanks.set(attackerDead.piece_id, String(m.attacker_rank));
+      } else if (m.outcome === 'DEFENDER_WINS') {
+        if (!isMyAttack) {
+          if (!deadEnemyRanks.has(m.piece_id)) {
+            deadEnemyRanks.set(m.piece_id, String(m.attacker_rank));
+          }
+        }
+      } else if (m.outcome === 'TIE') {
+        if (isMyAttack) {
+          const deadDefender = allPieces.find(
+            (p) => !p.alive && !p.is_mine && p.piece_id !== m.piece_id &&
+            p.row_idx === m.to_row && p.col_idx === m.to_col
+          );
+          if (deadDefender && !deadEnemyRanks.has(deadDefender.piece_id)) {
+            deadEnemyRanks.set(deadDefender.piece_id, String(m.defender_rank));
+          }
+        } else {
+          if (!deadEnemyRanks.has(m.piece_id)) {
+            deadEnemyRanks.set(m.piece_id, String(m.attacker_rank));
+          }
         }
       }
     }
