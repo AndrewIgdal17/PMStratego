@@ -148,3 +148,40 @@ test('chooseBotMove does not probe on Easy even when idle (probe probability is 
   const move = chooseBotMove(rows, 2, [], 'easy', 40, () => 0);
   assert.deepEqual(move, { pieceId: 'scout-1', from: { row: 0, col: 0 }, to: { row: 1, col: 0 } });
 });
+
+test('chooseBotMove does not vacate an atRisk guard square when a non-vacating alternative exists', () => {
+  // Bot Flag at (0,5). Guard sergeant at (1,5) — atRisk because enemy Marshal
+  // at (2,5) is within radius. Bot also has a Scout at (0,0) with a free move.
+  // The sergeant should NOT be moved away from its guard position.
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'sergeant-1', player_slot: 2, rank: '7', row_idx: 1, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 0, col_idx: 0, alive: true, is_mine: true },
+    { piece_id: 'marshal-e', player_slot: 1, rank: '1', row_idx: 2, col_idx: 5, alive: true, is_mine: false },
+  ];
+  const history = [
+    { move_number: 1, piece_id: 'marshal-e', player_slot: 1, attacker_rank: '1',
+      defender_piece_id: null, defender_rank: null, outcome: 'ATTACKER_WINS' },
+  ];
+  const move = chooseBotMove(rows, 2, history, 'hard', 4);
+  assert.notEqual(move.pieceId, 'sergeant-1',
+    'should not vacate the guard square when a non-vacating alternative exists');
+});
+
+test('chooseBotMove vacates an atRisk guard square when it is the only movable piece', () => {
+  // Bot Flag at (0,5). Guard sergeant at (1,5) — atRisk, but it's the only
+  // movable piece. It must move (Bombs/Flag can't).
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'sergeant-1', player_slot: 2, rank: '7', row_idx: 1, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'marshal-e', player_slot: 1, rank: '1', row_idx: 2, col_idx: 5, alive: true, is_mine: false },
+  ];
+  const history = [
+    { move_number: 1, piece_id: 'marshal-e', player_slot: 1, attacker_rank: '1',
+      defender_piece_id: null, defender_rank: null, outcome: 'ATTACKER_WINS' },
+  ];
+  const move = chooseBotMove(rows, 2, history, 'hard', 4);
+  assert.equal(move.pieceId, 'sergeant-1',
+    'must vacate when it is the only movable piece');
+});

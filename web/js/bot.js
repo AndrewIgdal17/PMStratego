@@ -6,6 +6,7 @@ import { resolveCombat, COMBAT_OUTCOME } from "./rules/combat.js";
 import { RANK } from "./rules/pieces.js";
 import { buildPieceMemory } from "./pieceMemory.js";
 import { findSuspects } from "./pieceSuspicion.js";
+import { findOwnFlag, assessGuardSquares, estimateUnknownEnemyRank } from "./flagDefense.js";
 
 const ALL_FORMATIONS = [...DEFENSIVE_FORMATIONS, ...AGGRESSIVE_FORMATIONS];
 const BOT_SLOT = 2;
@@ -13,6 +14,7 @@ const BOT_SLOT = 2;
 const VALUABLE_RANKS = new Set([RANK.MARSHAL, RANK.GENERAL, RANK.COLONEL, RANK.MAJOR, RANK.SPY]);
 const PROBE_ELIGIBLE_RANKS = new Set([RANK.CAPTAIN, RANK.LIEUTENANT, RANK.SERGEANT, RANK.MINER, RANK.SCOUT]);
 const PROBE_PROBABILITY = { easy: 0, medium: 0.5, hard: 1 };
+const LOOKOUT_RADIUS = { easy: 1, medium: 2, hard: 3 };
 
 // The bot is always seated as player slot 2, which needs the same local-row
 // -> absolute-row remap the human setup screen applies (see
@@ -71,6 +73,16 @@ export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficult
   const aliveOpponentPieces = pieces.filter((p) => p.alive && p.playerSlot !== botSlot);
   const suspects = findSuspects(fullMoveHistory, aliveOpponentPieces, difficulty, currentTurn);
 
+  const flag = findOwnFlag(pieces, botSlot);
+  let guardStatuses = [];
+  if (flag) {
+    const unknownRankEstimate = estimateUnknownEnemyRank(pieces, fullMoveHistory, botSlot);
+    guardStatuses = assessGuardSquares(pieces, flag, botSlot, memory, unknownRankEstimate, LOOKOUT_RADIUS[difficulty] ?? 2);
+  }
+  const atRiskFromSquares = new Set(
+    guardStatuses.filter((s) => s.status === 'atRisk').map((s) => `${s.row},${s.col}`),
+  );
+
   const winning = [];
   const safe = [];
   const losing = [];
@@ -108,6 +120,15 @@ export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficult
       pool = pool.filter(
         (move) => !(VALUABLE_RANKS.has(movingPieceRank(move)) && isSuspectedSquare(suspects, pieces, move.to.row, move.to.col)),
       );
+    }
+  }
+
+  if (atRiskFromSquares.size > 0) {
+    const nonVacating = pool.filter(
+      (move) => !atRiskFromSquares.has(`${move.from.row},${move.from.col}`),
+    );
+    if (nonVacating.length > 0) {
+      pool = nonVacating;
     }
   }
 
