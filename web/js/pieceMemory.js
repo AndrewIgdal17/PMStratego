@@ -45,6 +45,12 @@ function windowFor(rank, difficulty, seed, seedFn) {
 // piece_id [the mover/attacker], attacker_rank, defender_piece_id,
 // defender_rank), oldest-first, from BOTH players. Only combat moves
 // (outcome != null) carry reveals.
+// difficulty: 'easy' | 'medium' | 'hard' — controls base memory windows per rank tier.
+// currentTurn: pass fullMoveHistory.length (not games.turn_number); decay tracks
+// recorded moves, not the DB counter that can drift after partial writes.
+// seedFn: optional injectable hash for deterministic jitter in tests; defaults to
+// the real hash in deterministicJitter.js.
+// Returns Map<pieceId, rank> where rank is a normalized number or 'BOMB'.
 export function buildPieceMemory(moveHistory, difficulty, currentTurn, seedFn = undefined) {
   const memory = new Map();
 
@@ -64,6 +70,8 @@ export function buildPieceMemory(moveHistory, difficulty, currentTurn, seedFn = 
       if (window == null) continue;
 
       const age = currentTurn - move.move_number;
+      // window > 0: a 0-turn base window (e.g. Scout on Easy) means "never remember";
+      // without this guard, age(0) <= window(0) would match on the reveal turn itself.
       if (window > 0 && age <= window) {
         memory.set(pieceId, rank);
       }
