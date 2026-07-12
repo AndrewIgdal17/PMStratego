@@ -394,6 +394,7 @@ button:active:not(:disabled) {
 
 .game .page-frame {
   max-width: 1000px;
+  overflow: visible;
 }
 
 .game-layout {
@@ -475,6 +476,8 @@ button:active:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  overflow-y: auto;
+  max-height: 80vh;
 }
 
 .side-panel h3 {
