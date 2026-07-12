@@ -626,8 +626,7 @@ button:active:not(:disabled) {
 }
 
 .graveyard-slot.filled-mine {
-  background: #a8c9a8;
-  color: #1a3a1a;
+  color: #e0f0e0;
 }
 
 .graveyard-slot.filled-enemy {

@@ -374,6 +374,7 @@ function renderSingleGraveyard(containerId, isMine, enemyRankMap) {
       if (s < deadCount) {
         slot.classList.add(`filled-${colorSuffix}`);
         slot.textContent = entry.abbr;
+        if (isMine) slot.style.backgroundColor = getPlayerColor();
       } else {
         slot.classList.add(`empty-${colorSuffix}`);
       }
