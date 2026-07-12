@@ -215,3 +215,65 @@ test('chooseBotMove prefers a non-valuable piece for reinforcement', () => {
   assert.equal(move.pieceId, 'scout-1',
     'should prefer the non-valuable piece for reinforcement');
 });
+
+test('chooseBotMove personality=aggressive: probes before reinforcing when both are available', () => {
+  // Bot Flag at (0,5). Guard (1,5) is open (reinforce candidate).
+  // Suspect at (3,0) is probe-eligible (scout at (2,0) can reach it).
+  // With aggressive personality, probe should win the tie-break.
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 1, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'scout-2', player_slot: 2, rank: '9', row_idx: 2, col_idx: 0, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-2', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 6, alive: true, is_mine: true },
+    { piece_id: 'suspect-1', player_slot: 1, rank: null, row_idx: 3, col_idx: 0, alive: true, is_mine: false },
+  ];
+  // rng always returns 0 (forces probe roll to succeed; for random pick, picks first)
+  const move = chooseBotMove(rows, 2, [], 'hard', 20, () => 0, 'aggressive');
+  assert.deepEqual(move.to, { row: 3, col: 0 }, 'aggressive should probe');
+});
+
+test('chooseBotMove personality=defensive: reinforces before probing when both are available', () => {
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 1, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'scout-2', player_slot: 2, rank: '9', row_idx: 2, col_idx: 0, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-2', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 6, alive: true, is_mine: true },
+    { piece_id: 'suspect-1', player_slot: 1, rank: null, row_idx: 3, col_idx: 0, alive: true, is_mine: false },
+  ];
+  const move = chooseBotMove(rows, 2, [], 'hard', 20, () => 0, 'defensive');
+  assert.deepEqual(move.to, { row: 1, col: 5 }, 'defensive should reinforce');
+});
+
+test('chooseBotMove personality=neutral: coin flip decides probe vs reinforce (rng < 0.5 → reinforce)', () => {
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 1, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'scout-2', player_slot: 2, rank: '9', row_idx: 2, col_idx: 0, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-2', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 6, alive: true, is_mine: true },
+    { piece_id: 'suspect-1', player_slot: 1, rank: null, row_idx: 3, col_idx: 0, alive: true, is_mine: false },
+  ];
+  // rng sequence: first call (probe roll) returns 0 (probe succeeds), second call (tie-break coin) returns 0.3 (< 0.5 → reinforce wins)
+  let callCount = 0;
+  const rng = () => { callCount++; return callCount === 1 ? 0 : 0.3; };
+  const move = chooseBotMove(rows, 2, [], 'hard', 20, rng, 'neutral');
+  assert.deepEqual(move.to, { row: 1, col: 5 }, 'neutral with rng < 0.5 should reinforce');
+});
+
+test('chooseBotMove personality=neutral: coin flip decides probe vs reinforce (rng >= 0.5 → probe)', () => {
+  const rows = [
+    { piece_id: 'flag-1', player_slot: 2, rank: 'FLAG', row_idx: 0, col_idx: 5, alive: true, is_mine: true },
+    { piece_id: 'scout-1', player_slot: 2, rank: '9', row_idx: 1, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'scout-2', player_slot: 2, rank: '9', row_idx: 2, col_idx: 0, alive: true, is_mine: true },
+    { piece_id: 'bomb-1', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 4, alive: true, is_mine: true },
+    { piece_id: 'bomb-2', player_slot: 2, rank: 'BOMB', row_idx: 0, col_idx: 6, alive: true, is_mine: true },
+    { piece_id: 'suspect-1', player_slot: 1, rank: null, row_idx: 3, col_idx: 0, alive: true, is_mine: false },
+  ];
+  // rng sequence: first call returns 0 (probe roll succeeds), second call returns 0.7 (>= 0.5 → probe wins)
+  let callCount = 0;
+  const rng = () => { callCount++; return callCount === 1 ? 0 : 0.7; };
+  const move = chooseBotMove(rows, 2, [], 'hard', 20, rng, 'neutral');
+  assert.deepEqual(move.to, { row: 3, col: 0 }, 'neutral with rng >= 0.5 should probe');
+});

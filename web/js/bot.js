@@ -58,7 +58,7 @@ function isSuspectedSquare(suspects, pieces, row, col) {
 // difficulty: 'easy' | 'medium' | 'hard'.
 // currentTurn: fullMoveHistory.length (see design spec for why this is
 // used instead of games.turn_number).
-export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficulty = "medium", currentTurn = fullMoveHistory.length, rng = Math.random) {
+export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficulty = "medium", currentTurn = fullMoveHistory.length, rng = Math.random, personality = "neutral") {
   const pieces = gameStateRows.map(toRulesPiece);
   const legalMoves = getLegalMoves(pieces, botSlot, fullMoveHistory
     .filter((m) => pieces.some((p) => p.id === m.piece_id && p.playerSlot === botSlot))
@@ -162,11 +162,18 @@ export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficult
       return probeMoves[Math.floor(rng() * probeMoves.length)];
     }
     if (reinforceMoves.length > 0 && probeMoves.length > 0) {
-      // Personality tie-break (Task 6 will add the real logic; for now use neutral coin flip)
-      const first = rng() < 0.5 ? reinforceMoves : probeMoves;
-      const second = first === reinforceMoves ? probeMoves : reinforceMoves;
-      if (first.length > 0) return first[Math.floor(rng() * first.length)];
-      return second[Math.floor(rng() * second.length)];
+      let first, second;
+      if (personality === 'aggressive') {
+        first = probeMoves;
+        second = reinforceMoves;
+      } else if (personality === 'defensive') {
+        first = reinforceMoves;
+        second = probeMoves;
+      } else {
+        first = rng() < 0.5 ? reinforceMoves : probeMoves;
+        second = first === reinforceMoves ? probeMoves : reinforceMoves;
+      }
+      return first[Math.floor(rng() * first.length)];
     }
   }
 
