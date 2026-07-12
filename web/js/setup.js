@@ -82,6 +82,37 @@ const token = await ensureSession();
 const slot = Number(localStorage.getItem(`stratego:${roomCode}:slot`));
 const ABSOLUTE_ROWS = ABSOLUTE_ROWS_BY_SLOT[slot];
 
+async function initDifficultyControls() {
+  const { data: gameRow } = await supabase.from("games").select("is_bot_game, bot_difficulty").eq("room_code", roomCode).single();
+  if (!gameRow || !gameRow.is_bot_game || slot !== 1) return;
+
+  const container = document.getElementById("difficulty-controls");
+  container.hidden = false;
+
+  function highlightSelected(difficulty) {
+    container.querySelectorAll(".difficulty-btn").forEach((btn) => {
+      btn.classList.toggle("selected", btn.dataset.difficulty === difficulty);
+    });
+  }
+
+  highlightSelected(gameRow.bot_difficulty ?? "medium");
+
+  container.querySelectorAll(".difficulty-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await callFunction("set-bot-difficulty", { token, difficulty: btn.dataset.difficulty });
+        highlightSelected(btn.dataset.difficulty);
+      } catch (err) {
+        const statusEl = document.getElementById("setup-status");
+        statusEl.hidden = false;
+        statusEl.textContent = `Failed to set difficulty: ${err.message}`;
+      }
+    });
+  });
+}
+
+initDifficultyControls();
+
 const LOCAL_ROWS = [0, 1, 2, 3];
 const COLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 

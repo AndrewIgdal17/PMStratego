@@ -321,6 +321,18 @@ button:active:not(:disabled) {
   flex-wrap: wrap;
 }
 
+.difficulty-label {
+  align-self: center;
+  font-size: 0.85rem;
+  color: var(--wood-light);
+}
+
+.difficulty-btn.selected {
+  outline: 3px solid gold;
+  background: var(--wood-light);
+  color: var(--wood-dark);
+}
+
 .territory-grid {
   display: grid;
   gap: 2px;
