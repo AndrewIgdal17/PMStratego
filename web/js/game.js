@@ -143,7 +143,7 @@ async function refreshState() {
 async function refreshGameRow(gameId) {
   const { data, error } = await supabase
     .from("games")
-    .select("status, current_turn_slot, turn_number, winner_slot, is_bot_game")
+    .select("status, current_turn_slot, turn_number, winner_slot, is_bot_game, bot_difficulty")
     .eq("id", gameId)
     .single();
   if (error) return;
@@ -271,9 +271,8 @@ async function makeBotMove(gameId) {
 
     const { data: moveRows, error: movesError } = await supabase
       .from("moves")
-      .select("piece_id, from_row, from_col, to_row, to_col")
+      .select("move_number, piece_id, player_slot, from_row, from_col, to_row, to_col, outcome, attacker_rank, defender_rank, defender_piece_id")
       .eq("game_id", gameId)
-      .eq("player_slot", BOT_SLOT)
       .order("move_number", { ascending: true });
 
     if (movesError) {
@@ -281,13 +280,9 @@ async function makeBotMove(gameId) {
       continue;
     }
 
-    const botHistory = (moveRows ?? []).map((m) => ({
-      pieceId: m.piece_id,
-      from: `${m.from_row},${m.from_col}`,
-      to: `${m.to_row},${m.to_col}`,
-    }));
-
-    const move = chooseBotMove(rows, BOT_SLOT, botHistory);
+    const fullMoveHistory = moveRows ?? [];
+    const difficulty = gameRow?.bot_difficulty ?? "medium";
+    const move = chooseBotMove(rows, BOT_SLOT, fullMoveHistory, difficulty, fullMoveHistory.length);
     if (!move) return;
 
     try {
