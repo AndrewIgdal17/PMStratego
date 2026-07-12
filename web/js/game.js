@@ -179,7 +179,7 @@ function renderTurnIndicator() {
 async function refreshMoveLog(gameId) {
   const { data, error } = await supabase
     .from("moves")
-    .select("move_number, player_slot, from_row, from_col, to_row, to_col, move_type, outcome, attacker_rank, defender_rank")
+    .select("move_number, player_slot, piece_id, from_row, from_col, to_row, to_col, move_type, outcome, attacker_rank, defender_rank")
     .eq("game_id", gameId)
     .order("move_number", { ascending: true });
   if (error) return;
@@ -190,12 +190,18 @@ async function refreshMoveLog(gameId) {
   for (const m of data) {
     const li = document.createElement("li");
     const who = m.player_slot === mySlot ? "You" : (gameRow?.is_bot_game ? "Bot" : "Opponent");
-    const from = `${m.from_row},${m.from_col}`;
-    const to = `${m.to_row},${m.to_col}`;
+    const fromCoord = formatAbsCoord(m.from_row, m.from_col);
+    const toCoord = formatAbsCoord(m.to_row, m.to_col);
+    const isMyMove = m.player_slot === mySlot;
+
     if (m.move_type === "attack") {
-      li.textContent = `${who}: ${from} -> ${to} (${RANK_NAME[m.attacker_rank] ?? m.attacker_rank} vs ${RANK_NAME[m.defender_rank] ?? m.defender_rank}: ${m.outcome})`;
+      li.textContent = `${who}: ${fromCoord} → ${toCoord} (${RANK_NAME[m.attacker_rank] ?? m.attacker_rank} vs ${RANK_NAME[m.defender_rank] ?? m.defender_rank}: ${m.outcome})`;
+    } else if (isMyMove) {
+      const piece = piecesById.get(m.piece_id);
+      const pieceName = piece ? (RANK_NAME[piece.rank] ?? '') : '';
+      li.textContent = `${who}: ${pieceName ? pieceName + ' ' : ''}${fromCoord} → ${toCoord}`;
     } else {
-      li.textContent = `${who}: ${from} -> ${to}`;
+      li.textContent = `${who}: ${fromCoord} → ${toCoord}`;
     }
     list.appendChild(li);
   }
