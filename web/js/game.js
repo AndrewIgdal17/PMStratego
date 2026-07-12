@@ -98,13 +98,14 @@ function createTokenSVG(rank, isMine) {
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
-const token = localStorage.getItem(`stratego:${roomCode}:token`);
-const mySlot = Number(localStorage.getItem(`stratego:${roomCode}:slot`));
+const isSpectator = params.get("spectate") === "1";
+const token = isSpectator ? null : localStorage.getItem(`stratego:${roomCode}:token`);
+const mySlot = isSpectator ? 0 : Number(localStorage.getItem(`stratego:${roomCode}:slot`));
 
 const navRoomEl = document.getElementById("nav-room-code");
-if (navRoomEl && roomCode) navRoomEl.textContent = `Room: ${roomCode}`;
+if (navRoomEl && roomCode) navRoomEl.textContent = `Room: ${roomCode}${isSpectator ? ' (Spectating)' : ''}`;
 
-if (!token) {
+if (!token && !isSpectator) {
   document.body.innerHTML = "<p>No access token found for this room.</p>";
   throw new Error("missing token");
 }
@@ -124,9 +125,14 @@ async function loadGameId() {
 }
 
 async function refreshState() {
-  const { data: rows, error } = await supabase.rpc("get_game_state", { p_token: token });
+  let rows, error;
+  if (isSpectator) {
+    ({ data: rows, error } = await supabase.rpc("get_spectator_state", { p_room_code: roomCode }));
+  } else {
+    ({ data: rows, error } = await supabase.rpc("get_game_state", { p_token: token }));
+  }
   if (error) {
-    console.error("get_game_state failed", error);
+    console.error("state fetch failed", error);
     return;
   }
   piecesById = new Map(rows.map((r) => [r.piece_id, r]));
@@ -163,15 +169,32 @@ function renderTurnIndicator() {
   const el = document.getElementById("turn-indicator");
   if (!gameRow) return;
   if (gameRow.status === "finished") {
-    el.textContent = gameRow.winner_slot === mySlot ? "You won!" : "You lost.";
-    document.getElementById("rematch-btn").hidden = false;
+    if (isSpectator) {
+      el.textContent = `Player ${gameRow.winner_slot} wins!`;
+    } else {
+      el.textContent = gameRow.winner_slot === mySlot ? "You won!" : "You lost.";
+    }
+    if (!isSpectator) document.getElementById("rematch-btn").hidden = false;
     return;
   }
-  el.textContent = gameRow.current_turn_slot === mySlot
-    ? "Your turn"
-    : gameRow.is_bot_game ? "Bot's turn..." : "Waiting for opponent...";
+  if (isSpectator) {
+    el.textContent = gameRow.is_bot_game && gameRow.current_turn_slot === 2
+      ? "Bot's turn..."
+      : `Player ${gameRow.current_turn_slot}'s turn`;
+  } else {
+    el.textContent = gameRow.current_turn_slot === mySlot
+      ? "Your turn"
+      : gameRow.is_bot_game ? "Bot's turn..." : "Waiting for opponent...";
+  }
 
-  if (gameRow.is_bot_game) {
+  if (isSpectator) {
+    document.getElementById("chat-form").hidden = true;
+    document.getElementById("resign-btn").hidden = true;
+    const enemyLabel = document.querySelector('#graveyard-enemy .graveyard-label');
+    const mineLabel = document.querySelector('#graveyard-mine .graveyard-label');
+    if (enemyLabel) enemyLabel.textContent = 'Player 2 Losses';
+    if (mineLabel) mineLabel.textContent = 'Player 1 Losses';
+  } else if (gameRow.is_bot_game) {
     document.getElementById("chat-form").hidden = true;
   }
 }
@@ -189,13 +212,22 @@ async function refreshMoveLog(gameId) {
   list.innerHTML = "";
   for (const m of data) {
     const li = document.createElement("li");
-    const who = m.player_slot === mySlot ? "You" : (gameRow?.is_bot_game ? "Bot" : "Opponent");
+    let who;
+    if (isSpectator) {
+      who = gameRow?.is_bot_game && m.player_slot === 2 ? "Bot" : `P${m.player_slot}`;
+    } else {
+      who = m.player_slot === mySlot ? "You" : (gameRow?.is_bot_game ? "Bot" : "Opponent");
+    }
     const fromCoord = formatAbsCoord(m.from_row, m.from_col);
     const toCoord = formatAbsCoord(m.to_row, m.to_col);
     const isMyMove = m.player_slot === mySlot;
 
     if (m.move_type === "attack") {
       li.textContent = `${who}: ${fromCoord} → ${toCoord} (${RANK_NAME[m.attacker_rank] ?? m.attacker_rank} vs ${RANK_NAME[m.defender_rank] ?? m.defender_rank}: ${m.outcome})`;
+    } else if (isSpectator) {
+      const piece = piecesById.get(m.piece_id);
+      const pieceName = piece ? (RANK_NAME[piece.rank] ?? '') : '';
+      li.textContent = `${who}: ${pieceName ? pieceName + ' ' : ''}${fromCoord} → ${toCoord}`;
     } else if (isMyMove) {
       const piece = piecesById.get(m.piece_id);
       const pieceName = piece ? (RANK_NAME[piece.rank] ?? '') : '';
@@ -329,7 +361,8 @@ function renderBoard() {
 
       const piece = [...piecesById.values()].find((p) => p.row_idx === row && p.col_idx === col && p.alive);
       if (piece) {
-        cell.appendChild(createTokenSVG(piece.rank, piece.is_mine));
+        const isFriendly = isSpectator ? piece.player_slot === 1 : piece.is_mine;
+        cell.appendChild(createTokenSVG(piece.rank, isFriendly));
         if (piece.piece_id === selectedPieceId) cell.classList.add("selected");
       }
 
@@ -367,16 +400,21 @@ function renderGraveyards(moveData) {
     }
   }
 
-  renderSingleGraveyard('graveyard-enemy-body', false, deadEnemyRanks);
-  renderSingleGraveyard('graveyard-mine-body', true, null);
+  if (isSpectator) {
+    renderSingleGraveyard('graveyard-enemy-body', false, null, 2);
+    renderSingleGraveyard('graveyard-mine-body', false, null, 1);
+  } else {
+    renderSingleGraveyard('graveyard-enemy-body', false, deadEnemyRanks);
+    renderSingleGraveyard('graveyard-mine-body', true, null);
+  }
 }
 
-function renderSingleGraveyard(containerId, isMine, enemyRankMap) {
+function renderSingleGraveyard(containerId, isMine, enemyRankMap, filterSlot) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
   const allPieces = [...piecesById.values()];
-  const deadPieces = allPieces.filter((p) => !p.alive && p.is_mine === isMine);
+  const deadPieces = allPieces.filter((p) => !p.alive && (filterSlot ? p.player_slot === filterSlot : p.is_mine === isMine));
 
   const deadByRank = new Map();
   for (const p of deadPieces) {
@@ -432,6 +470,7 @@ function renderSingleGraveyard(containerId, isMine, enemyRankMap) {
 }
 
 async function handleCellClick(row, col, piece) {
+  if (isSpectator) return;
   if (!gameRow || gameRow.status !== "active" || gameRow.current_turn_slot !== mySlot) return;
 
   if (selectedPieceId) {
