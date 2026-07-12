@@ -134,21 +134,51 @@ Deno.serve(async (req) => {
   const bothReady = allPlayers?.length === 2 && allPlayers.every((p) => p.setup_submitted);
 
   if (bothReady) {
-    const firstTurnSlot = Math.random() < 0.5 ? 1 : 2;
-    const { error: activateError } = await supabase
+    const { data: gameForBot, error: gameBotError } = await supabase
       .from("games")
-      .update({ status: "active", current_turn_slot: firstTurnSlot, turn_number: 1 })
-      .eq("id", playerRow.game_id);
+      .select("is_bot_game")
+      .eq("id", playerRow.game_id)
+      .single();
 
-    if (activateError) {
-      return new Response(
-        JSON.stringify({ error: "GAME_ACTIVATION_FAILED", detail: activateError.message }),
-        { status: 500, headers: corsHeaders },
-      );
+    const isBotGame = gameBotError ? false : gameForBot?.is_bot_game === true;
+
+    if (isBotGame) {
+      const firstTurnSlot = Math.random() < 0.5 ? 1 : 2;
+      const { error: activateError } = await supabase
+        .from("games")
+        .update({ status: "active", current_turn_slot: firstTurnSlot, turn_number: 1 })
+        .eq("id", playerRow.game_id);
+
+      if (activateError) {
+        return new Response(
+          JSON.stringify({ error: "GAME_ACTIVATION_FAILED", detail: activateError.message }),
+          { status: 500, headers: corsHeaders },
+        );
+      }
+
+      return new Response(JSON.stringify({ ok: true, gameStarted: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } else {
+      const { error: timestampError } = await supabase
+        .from("games")
+        .update({ both_submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq("id", playerRow.game_id);
+
+      if (timestampError) {
+        return new Response(
+          JSON.stringify({ error: "TIMESTAMP_UPDATE_FAILED", detail: timestampError.message }),
+          { status: 500, headers: corsHeaders },
+        );
+      }
+
+      return new Response(JSON.stringify({ ok: true, gameStarted: false, countdownStarted: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
   }
 
-  return new Response(JSON.stringify({ ok: true, gameStarted: bothReady }), {
+  return new Response(JSON.stringify({ ok: true, gameStarted: false }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
