@@ -40,6 +40,7 @@ export function applyMove(state, { playerSlot, from, to }) {
       outcome,
       attackerRank: moverPiece.rank,
       defenderRank: defenderPiece.rank,
+      defenderPieceId: defenderPiece.id,
     };
 
     if (defenderPiece.rank === RANK.FLAG) {

@@ -121,6 +121,7 @@ Deno.serve(async (req) => {
     outcome: result.combatResult?.outcome ?? null,
     attacker_rank: result.combatResult?.attackerRank ?? null,
     defender_rank: result.combatResult?.defenderRank ?? null,
+    defender_piece_id: result.combatResult?.defenderPieceId ?? null,
   });
 
   if (moveInsertError) {

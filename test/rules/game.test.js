@@ -60,6 +60,7 @@ test('an attack that wins removes the defender and advances the attacker', () =>
   const result = applyMove(baseState(pieces), { playerSlot: 1, from: { row: 6, col: 5 }, to: { row: 6, col: 6 } });
   assert.equal(result.ok, true);
   assert.equal(result.combatResult.outcome, 'ATTACKER_WINS');
+  assert.equal(result.combatResult.defenderPieceId, 'b');
   const attacker = result.newState.pieces.find((p) => p.id === 'a');
   const defender = result.newState.pieces.find((p) => p.id === 'b');
   assert.equal(attacker.alive, true);
@@ -76,6 +77,7 @@ test('an attack that loses removes the attacker and leaves the defender in place
   const result = applyMove(baseState(pieces), { playerSlot: 1, from: { row: 6, col: 5 }, to: { row: 6, col: 6 } });
   assert.equal(result.ok, true);
   assert.equal(result.combatResult.outcome, 'DEFENDER_WINS');
+  assert.equal(result.combatResult.defenderPieceId, 'b');
   const attacker = result.newState.pieces.find((p) => p.id === 'a');
   const defender = result.newState.pieces.find((p) => p.id === 'b');
   assert.equal(attacker.alive, false);
