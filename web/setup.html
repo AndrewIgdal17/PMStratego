@@ -35,7 +35,13 @@
             <button id="clear-btn">Clear</button>
           </div>
           <p class="grid-label enemy-label">Enemy side</p>
-          <div id="territory-grid" class="territory-grid"></div>
+          <div class="board-frame setup-frame">
+            <div class="board-col-labels" id="setup-col-labels"></div>
+            <div class="board-inner">
+              <div class="board-row-labels" id="setup-row-labels"></div>
+              <div id="territory-grid" class="territory-grid"></div>
+            </div>
+          </div>
           <p class="grid-label back-label">Your back row</p>
           <button id="submit-setup-btn" class="btn-primary" disabled>Submit setup</button>
           <p id="setup-status" class="result" hidden></p>

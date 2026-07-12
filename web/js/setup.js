@@ -150,6 +150,24 @@ function highlightSelectedChip(chip) {
 let selectedRank = null;
 
 function renderGrid() {
+  const colLabels = document.getElementById("setup-col-labels");
+  if (colLabels && colLabels.children.length === 0) {
+    for (let c = 0; c < COLS.length; c++) {
+      const span = document.createElement("span");
+      span.textContent = String.fromCharCode(65 + c);
+      colLabels.appendChild(span);
+    }
+  }
+
+  const rowLabels = document.getElementById("setup-row-labels");
+  if (rowLabels && rowLabels.children.length === 0) {
+    for (let r = 0; r < LOCAL_ROWS.length; r++) {
+      const span = document.createElement("span");
+      span.textContent = String(7 + r);
+      rowLabels.appendChild(span);
+    }
+  }
+
   const grid = document.getElementById("territory-grid");
   grid.innerHTML = "";
   grid.style.gridTemplateColumns = `repeat(${COLS.length}, 1fr)`;
@@ -226,8 +244,8 @@ function updateFormationLabel(text) {
     label = document.createElement("p");
     label.id = "formation-label";
     label.className = "formation-label";
-    const grid = document.getElementById("territory-grid");
-    grid.parentNode.insertBefore(label, grid);
+    const frame = document.querySelector(".setup-frame");
+    frame.parentNode.insertBefore(label, frame);
   }
   label.textContent = text;
   label.hidden = !text;
