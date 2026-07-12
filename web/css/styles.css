@@ -455,28 +455,14 @@ button:active:not(:disabled) {
   font-size: 0.9rem;
 }
 
-.board-cell.mine {
-  background: #a8c9a8;
-  font-weight: bold;
-  color: #1a3a1a;
-}
-
-.board-cell.mine:hover {
-  background: #90b590;
-}
-
-.board-cell.enemy {
-  background: #d98b8b;
-  color: #3a1a1a;
-}
-
-.board-cell.enemy:hover {
-  background: #c77a7a;
-}
-
 .board-cell.selected {
   outline: 3px solid gold;
   z-index: 1;
+}
+
+.piece-token {
+  width: 70%;
+  height: 70%;
 }
 
 .side-panel {
