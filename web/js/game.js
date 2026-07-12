@@ -143,7 +143,7 @@ async function refreshState() {
 async function refreshGameRow(gameId) {
   const { data, error } = await supabase
     .from("games")
-    .select("status, current_turn_slot, turn_number, winner_slot, is_bot_game, bot_difficulty")
+    .select("status, current_turn_slot, turn_number, winner_slot, is_bot_game, bot_difficulty, bot_personality")
     .eq("id", gameId)
     .single();
   if (error) return;
@@ -282,7 +282,8 @@ async function makeBotMove(gameId) {
 
     const fullMoveHistory = moveRows ?? [];
     const difficulty = gameRow?.bot_difficulty ?? "medium";
-    const move = chooseBotMove(rows, BOT_SLOT, fullMoveHistory, difficulty, fullMoveHistory.length);
+    const personality = gameRow?.bot_personality ?? "neutral";
+    const move = chooseBotMove(rows, BOT_SLOT, fullMoveHistory, difficulty, fullMoveHistory.length, Math.random, personality);
     if (!move) return;
 
     try {
