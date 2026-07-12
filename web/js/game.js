@@ -20,10 +20,28 @@ const RANK_NAME = {
   9: 'Scout', 10: 'Spy',
 };
 
+const GRAVEYARD_RANKS = [
+  { rank: '1',    abbr: 'Ma', count: 1 },
+  { rank: '2',    abbr: 'Ge', count: 1 },
+  { rank: '3',    abbr: 'Co', count: 2 },
+  { rank: '4',    abbr: 'Mj', count: 3 },
+  { rank: '5',    abbr: 'Cp', count: 4 },
+  { rank: '6',    abbr: 'Lt', count: 4 },
+  { rank: '7',    abbr: 'Sg', count: 4 },
+  { rank: '8',    abbr: 'Mi', count: 5 },
+  { rank: '9',    abbr: 'Sc', count: 8 },
+  { rank: '10',   abbr: 'Sp', count: 1 },
+  { rank: 'BOMB', abbr: 'B',  count: 6 },
+  { rank: 'FLAG', abbr: 'F',  count: 1 },
+];
+
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
 const token = localStorage.getItem(`stratego:${roomCode}:token`);
 const mySlot = Number(localStorage.getItem(`stratego:${roomCode}:slot`));
+
+const navRoomEl = document.getElementById("nav-room-code");
+if (navRoomEl && roomCode) navRoomEl.textContent = `Room: ${roomCode}`;
 
 if (!token) {
   document.body.innerHTML = "<p>No access token found for this room.</p>";
@@ -36,6 +54,7 @@ let gameId = null;
 let selectedPieceId = null;
 const BOT_SLOT = 2;
 let botMoveScheduled = false;
+let lastMoveData = null;
 
 async function loadGameId() {
   const { data, error } = await supabase.from("games").select("id").eq("room_code", roomCode).single();
@@ -51,6 +70,7 @@ async function refreshState() {
   }
   piecesById = new Map(rows.map((r) => [r.piece_id, r]));
   renderBoard();
+  renderGraveyards(lastMoveData);
 }
 
 async function refreshGameRow(gameId) {
@@ -102,6 +122,7 @@ async function refreshMoveLog(gameId) {
     .eq("game_id", gameId)
     .order("move_number", { ascending: true });
   if (error) return;
+  lastMoveData = data;
 
   const list = document.getElementById("move-log");
   list.innerHTML = "";
@@ -117,6 +138,7 @@ async function refreshMoveLog(gameId) {
     }
     list.appendChild(li);
   }
+  renderGraveyards(data);
 }
 
 async function refreshChat(gameId) {
@@ -215,6 +237,97 @@ function renderBoard() {
   }
 }
 
+function renderGraveyards(moveData) {
+  const allPieces = [...piecesById.values()];
+
+  const deadEnemyRanks = new Map();
+  if (moveData) {
+    for (const m of moveData) {
+      if (m.move_type !== 'attack') continue;
+      if (m.outcome === 'ATTACKER_WINS' || m.outcome === 'TIE') {
+        const defenderOnSquare = allPieces.find(
+          (p) => !p.alive && p.row_idx === m.to_row && p.col_idx === m.to_col && !p.is_mine
+        );
+        if (defenderOnSquare && !deadEnemyRanks.has(defenderOnSquare.piece_id)) {
+          deadEnemyRanks.set(defenderOnSquare.piece_id, String(m.defender_rank));
+        }
+      }
+      if (m.outcome === 'DEFENDER_WINS' || m.outcome === 'TIE') {
+        const attackerDead = allPieces.find(
+          (p) => !p.alive && !p.is_mine && p.piece_id === allPieces.find(
+            (q) => !q.alive && q.row_idx === m.from_row && q.col_idx === m.from_col && !q.is_mine
+          )?.piece_id
+        );
+        if (attackerDead && !deadEnemyRanks.has(attackerDead.piece_id)) {
+          deadEnemyRanks.set(attackerDead.piece_id, String(m.attacker_rank));
+        }
+      }
+    }
+  }
+
+  renderSingleGraveyard('graveyard-enemy-body', false, deadEnemyRanks);
+  renderSingleGraveyard('graveyard-mine-body', true, null);
+}
+
+function renderSingleGraveyard(containerId, isMine, enemyRankMap) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const allPieces = [...piecesById.values()];
+  const deadPieces = allPieces.filter((p) => !p.alive && p.is_mine === isMine);
+
+  const deadByRank = new Map();
+  for (const p of deadPieces) {
+    let rank = p.rank != null ? String(p.rank) : null;
+    if (!isMine && rank == null && enemyRankMap) {
+      rank = enemyRankMap.get(p.piece_id) ?? null;
+    }
+    if (rank == null) continue;
+    if (!deadByRank.has(rank)) deadByRank.set(rank, 0);
+    deadByRank.set(rank, deadByRank.get(rank) + 1);
+  }
+
+  const colorSuffix = isMine ? 'mine' : 'enemy';
+
+  const tray = document.createElement('div');
+  tray.className = 'graveyard-tray';
+
+  for (let i = 0; i < GRAVEYARD_RANKS.length; i++) {
+    const entry = GRAVEYARD_RANKS[i];
+    if (i > 0) {
+      const divider = document.createElement('div');
+      divider.className = 'graveyard-divider';
+      tray.appendChild(divider);
+    }
+
+    const col = document.createElement('div');
+    col.className = 'graveyard-column';
+
+    const label = document.createElement('span');
+    label.className = 'graveyard-rank-label';
+    label.textContent = entry.abbr;
+    col.appendChild(label);
+
+    const deadCount = deadByRank.get(entry.rank) ?? 0;
+    for (let s = 0; s < entry.count; s++) {
+      const slot = document.createElement('div');
+      slot.className = 'graveyard-slot';
+      if (s < deadCount) {
+        slot.classList.add(`filled-${colorSuffix}`);
+        slot.textContent = entry.abbr;
+      } else {
+        slot.classList.add(`empty-${colorSuffix}`);
+      }
+      col.appendChild(slot);
+    }
+
+    tray.appendChild(col);
+  }
+
+  container.innerHTML = '';
+  container.appendChild(tray);
+}
+
 async function handleCellClick(row, col, piece) {
   if (!gameRow || gameRow.status !== "active" || gameRow.current_turn_slot !== mySlot) return;
 
@@ -297,5 +410,11 @@ async function init() {
     })
     .subscribe();
 }
+
+document.querySelectorAll('.graveyard-header').forEach((header) => {
+  header.addEventListener('click', () => {
+    header.closest('.graveyard').classList.toggle('collapsed');
+  });
+});
 
 init();
