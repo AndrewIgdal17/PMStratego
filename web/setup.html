@@ -8,28 +8,41 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <main class="setup">
-    <h1>Arrange your army</h1>
-    <div class="setup-layout">
-      <aside class="piece-sidebar">
-        <h3>Pieces</h3>
-        <div id="tray" class="tray"></div>
-      </aside>
-      <div class="setup-main">
-        <div class="setup-controls">
-          <button data-formation="random">Random</button>
-          <button data-formation="defensive">Defensive</button>
-          <button data-formation="aggressive">Aggressive</button>
-          <button id="clear-btn">Clear</button>
-        </div>
-        <p class="grid-label enemy-label">Enemy side</p>
-        <div id="territory-grid" class="territory-grid"></div>
-        <p class="grid-label back-label">Your back row</p>
-        <button id="submit-setup-btn" class="btn-primary" disabled>Submit setup</button>
-        <p id="setup-status" class="result" hidden></p>
-      </div>
+  <nav class="top-nav">
+    <a href="index.html" class="nav-brand">Stratego</a>
+    <div class="nav-links">
+      <span id="nav-room-code" class="nav-context"></span>
+      <a href="index.html">Home</a>
     </div>
-  </main>
+  </nav>
+  <div class="page-shell setup">
+    <main class="page-frame">
+      <h1>Arrange your army</h1>
+      <div class="setup-layout">
+        <aside class="piece-sidebar">
+          <h3>Pieces</h3>
+          <div id="tray" class="tray"></div>
+        </aside>
+        <div class="setup-main">
+          <div class="color-picker">
+            <span class="color-picker-label">Army color:</span>
+            <div id="color-swatches" class="color-swatches"></div>
+          </div>
+          <div class="setup-controls">
+            <button data-formation="random">Random</button>
+            <button data-formation="defensive">Defensive</button>
+            <button data-formation="aggressive">Aggressive</button>
+            <button id="clear-btn">Clear</button>
+          </div>
+          <p class="grid-label enemy-label">Enemy side</p>
+          <div id="territory-grid" class="territory-grid"></div>
+          <p class="grid-label back-label">Your back row</p>
+          <button id="submit-setup-btn" class="btn-primary" disabled>Submit setup</button>
+          <p id="setup-status" class="result" hidden></p>
+        </div>
+      </div>
+    </main>
+  </div>
   <script type="module" src="js/setup.js"></script>
 </body>
 </html>

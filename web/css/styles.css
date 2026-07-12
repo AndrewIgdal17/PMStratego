@@ -649,6 +649,44 @@ button:active:not(:disabled) {
   color: #3a1a1a;
 }
 
+/* ── Color picker ── */
+
+.color-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  justify-content: center;
+}
+
+.color-picker-label {
+  font-size: 0.85rem;
+  color: var(--wood-light);
+}
+
+.color-swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.color-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.color-swatch:hover {
+  transform: scale(1.15);
+}
+
+.color-swatch.selected {
+  border-color: gold;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+
 @media (max-width: 700px) {
   .game-layout {
     grid-template-columns: 1fr;

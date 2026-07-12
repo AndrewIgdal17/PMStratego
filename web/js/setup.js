@@ -7,6 +7,49 @@ const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
 const isJoining = params.get("join") === "1";
 
+const navRoomEl = document.getElementById("nav-room-code");
+if (navRoomEl && roomCode) navRoomEl.textContent = `Room: ${roomCode}`;
+
+const PLAYER_COLORS = [
+  { name: 'Forest Green', hex: '#4a7a4a' },
+  { name: 'Navy Blue',    hex: '#3a5a8a' },
+  { name: 'Royal Purple', hex: '#6a4a8a' },
+  { name: 'Teal',         hex: '#3a7a7a' },
+  { name: 'Gold',         hex: '#8a7a3a' },
+  { name: 'Crimson',      hex: '#8a3a4a' },
+  { name: 'Slate',        hex: '#5a6a7a' },
+  { name: 'Bronze',       hex: '#8a6a3a' },
+];
+
+function initColorPicker() {
+  const container = document.getElementById('color-swatches');
+  if (!container) return;
+
+  const saved = localStorage.getItem(`stratego:${roomCode}:color`) || PLAYER_COLORS[0].hex;
+
+  for (const color of PLAYER_COLORS) {
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.style.backgroundColor = color.hex;
+    swatch.title = color.name;
+    if (color.hex === saved) swatch.classList.add('selected');
+
+    swatch.addEventListener('click', () => {
+      container.querySelectorAll('.color-swatch').forEach((s) => s.classList.remove('selected'));
+      swatch.classList.add('selected');
+      localStorage.setItem(`stratego:${roomCode}:color`, color.hex);
+    });
+
+    container.appendChild(swatch);
+  }
+
+  if (!localStorage.getItem(`stratego:${roomCode}:color`)) {
+    localStorage.setItem(`stratego:${roomCode}:color`, PLAYER_COLORS[0].hex);
+  }
+}
+
+initColorPicker();
+
 async function ensureSession() {
   let token = localStorage.getItem(`stratego:${roomCode}:token`);
   if (token) return token;
