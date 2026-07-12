@@ -36,12 +36,12 @@ const GRAVEYARD_RANKS = [
 ];
 
 const RANK_CENTER = {
-  '1': '1', '2': '2', '3': '3', '4': '4',
-  '5': '5', '6': '6', '7': '7', '8': '8',
-  '9': '9', '10': 'S', 'BOMB': '💣', 'FLAG': '🚩',
-  1: '1', 2: '2', 3: '3', 4: '4',
-  5: '5', 6: '6', 7: '7', 8: '8',
-  9: '9', 10: 'S',
+  '1': '10', '2': '9', '3': '8', '4': '7',
+  '5': '6', '6': '5', '7': '4', '8': '3',
+  '9': '2', '10': 'S', 'BOMB': '💣', 'FLAG': '🚩',
+  1: '10', 2: '9', 3: '8', 4: '7',
+  5: '6', 6: '5', 7: '4', 8: '3',
+  9: '2', 10: 'S',
 };
 
 const ENEMY_COLOR = '#8b4444';
@@ -69,7 +69,8 @@ function createTokenSVG(rank, isMine) {
   const isEmoji = center === '💣' || center === '🚩';
   const isSpy = center === 'S';
 
-  const centerFontSize = isEmoji ? 20 : (isSpy ? 24 : 22);
+  const isTwoDigit = center === '10';
+  const centerFontSize = isEmoji ? 20 : (isSpy ? 24 : (isTwoDigit ? 18 : 22));
   const centerStyle = isSpy ? 'font-style="italic"' : '';
   const centerY = isEmoji ? 44 : 46;
 
