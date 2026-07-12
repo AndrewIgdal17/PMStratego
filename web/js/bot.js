@@ -3,9 +3,16 @@ import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
 import { ABSOLUTE_ROWS_BY_SLOT } from "./formationRowMap.js";
 import { getLegalMoves } from "./rules/game.js";
 import { resolveCombat, COMBAT_OUTCOME } from "./rules/combat.js";
+import { RANK } from "./rules/pieces.js";
+import { buildPieceMemory } from "./pieceMemory.js";
+import { findSuspects } from "./pieceSuspicion.js";
 
 const ALL_FORMATIONS = [...DEFENSIVE_FORMATIONS, ...AGGRESSIVE_FORMATIONS];
 const BOT_SLOT = 2;
+
+const VALUABLE_RANKS = new Set([RANK.MARSHAL, RANK.GENERAL, RANK.COLONEL, RANK.MAJOR, RANK.SPY]);
+const PROBE_ELIGIBLE_RANKS = new Set([RANK.CAPTAIN, RANK.LIEUTENANT, RANK.SERGEANT, RANK.MINER, RANK.SCOUT]);
+const PROBE_PROBABILITY = { easy: 0, medium: 0.5, hard: 1 };
 
 // The bot is always seated as player slot 2, which needs the same local-row
 // -> absolute-row remap the human setup screen applies (see
@@ -33,18 +40,36 @@ function toRulesPiece(row) {
   };
 }
 
+function isSuspectedSquare(suspects, pieces, row, col) {
+  const piece = pieces.find((p) => p.alive && p.row === row && p.col === col);
+  return piece != null && suspects.has(piece.id);
+}
+
 // gameStateRows: rows shaped like get_game_state()'s output (piece_id,
 // player_slot, rank, row_idx, col_idx, alive, is_mine). Opponent pieces
 // that haven't been revealed have rank === null, exactly as a human
-// opponent would see them -- the bot gets no extra information.
-export function chooseBotMove(gameStateRows, botSlot, botMoveHistory) {
+// opponent would see them -- the bot gets no extra information beyond
+// what pieceMemory/pieceSuspicion can legitimately infer from history.
+//
+// fullMoveHistory: every move in the game so far (both players), shaped
+// like the `moves` table -- used to build memory + suspicion.
+// difficulty: 'easy' | 'medium' | 'hard'.
+// currentTurn: fullMoveHistory.length (see design spec for why this is
+// used instead of games.turn_number).
+export function chooseBotMove(gameStateRows, botSlot, fullMoveHistory, difficulty = "medium", currentTurn = fullMoveHistory.length, rng = Math.random) {
   const pieces = gameStateRows.map(toRulesPiece);
-  const legalMoves = getLegalMoves(pieces, botSlot, botMoveHistory);
+  const legalMoves = getLegalMoves(pieces, botSlot, fullMoveHistory
+    .filter((m) => pieces.some((p) => p.id === m.piece_id && p.playerSlot === botSlot))
+    .map((m) => ({ pieceId: m.piece_id, from: `${m.from_row},${m.from_col}`, to: `${m.to_row},${m.to_col}` })));
   if (legalMoves.length === 0) return null;
 
   const botRankByPieceId = new Map(
     pieces.filter((p) => p.playerSlot === botSlot).map((p) => [p.id, p.rank]),
   );
+
+  const memory = buildPieceMemory(fullMoveHistory, difficulty, currentTurn);
+  const aliveOpponentPieces = pieces.filter((p) => p.alive && p.playerSlot !== botSlot);
+  const suspects = findSuspects(fullMoveHistory, aliveOpponentPieces, difficulty, currentTurn);
 
   const winning = [];
   const safe = [];
@@ -52,11 +77,14 @@ export function chooseBotMove(gameStateRows, botSlot, botMoveHistory) {
 
   for (const move of legalMoves) {
     const defender = pieces.find((p) => p.alive && p.row === move.to.row && p.col === move.to.col);
-    if (!defender || defender.rank == null) {
+    const liveRank = defender?.rank ?? null;
+    const knownRank = liveRank != null ? liveRank : (defender ? memory.get(defender.id) ?? null : null);
+
+    if (!defender || knownRank == null) {
       safe.push(move);
       continue;
     }
-    const outcome = resolveCombat(botRankByPieceId.get(move.pieceId), defender.rank);
+    const outcome = resolveCombat(botRankByPieceId.get(move.pieceId), knownRank);
     if (outcome === COMBAT_OUTCOME.DEFENDER_WINS) {
       losing.push(move);
     } else {
@@ -64,6 +92,36 @@ export function chooseBotMove(gameStateRows, botSlot, botMoveHistory) {
     }
   }
 
-  const pool = winning.length > 0 ? winning : safe.length > 0 ? safe : losing;
-  return pool[Math.floor(Math.random() * pool.length)];
+  let pool = winning.length > 0 ? winning : safe.length > 0 ? safe : losing;
+
+  // Avoid sending a valuable piece onto a suspected square when a
+  // non-suspected alternative exists in the same pool.
+  const movingPieceRank = (move) => botRankByPieceId.get(move.pieceId);
+  const nonSuspectAlternatives = pool.filter(
+    (move) => !isSuspectedSquare(suspects, pieces, move.to.row, move.to.col),
+  );
+  if (nonSuspectAlternatives.length > 0) {
+    const valuableOnSuspect = pool.some(
+      (move) => VALUABLE_RANKS.has(movingPieceRank(move)) && isSuspectedSquare(suspects, pieces, move.to.row, move.to.col),
+    );
+    if (valuableOnSuspect) {
+      pool = pool.filter(
+        (move) => !(VALUABLE_RANKS.has(movingPieceRank(move)) && isSuspectedSquare(suspects, pieces, move.to.row, move.to.col)),
+      );
+    }
+  }
+
+  // Probe-when-idle: only applies when there's no winning move (i.e. we're
+  // choosing from the safe or losing pool) and a probe-eligible piece has
+  // a legal move onto a suspected square.
+  if (winning.length === 0 && suspects.size > 0 && rng() < PROBE_PROBABILITY[difficulty]) {
+    const probeMoves = safe.filter(
+      (move) => PROBE_ELIGIBLE_RANKS.has(movingPieceRank(move)) && isSuspectedSquare(suspects, pieces, move.to.row, move.to.col),
+    );
+    if (probeMoves.length > 0) {
+      return probeMoves[Math.floor(rng() * probeMoves.length)];
+    }
+  }
+
+  return pool[Math.floor(rng() * pool.length)];
 }
