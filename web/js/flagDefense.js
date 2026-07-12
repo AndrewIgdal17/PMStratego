@@ -1,5 +1,9 @@
 // web/js/flagDefense.js
 import { RANK, ARMY_COMPOSITION } from "./rules/pieces.js";
+import { isOnBoard, isLake } from "./rules/board.js";
+import { resolveCombat, COMBAT_OUTCOME } from "./rules/combat.js";
+
+const ORTHOGONAL = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
 function normalizeRank(rank) {
   if (rank === "BOMB" || rank === "FLAG" || rank == null) return rank;
@@ -52,4 +56,49 @@ export function estimateUnknownEnemyRank(pieces, fullMoveHistory, botSlot) {
   }
 
   return weightedSum / totalCount;
+}
+
+export function assessGuardSquares(pieces, flag, botSlot, memory, unknownRankEstimate, lookoutRadius) {
+  const results = [];
+
+  for (const [dr, dc] of ORTHOGONAL) {
+    const row = flag.row + dr;
+    const col = flag.col + dc;
+
+    if (!isOnBoard(row, col) || isLake(row, col)) continue;
+
+    const occupant = pieces.find((p) => p.alive && p.row === row && p.col === col);
+
+    if (occupant && occupant.playerSlot !== botSlot) continue;
+
+    if (!occupant) {
+      results.push({ row, col, status: 'open', occupiedByPieceId: null });
+      continue;
+    }
+
+    const guardRank = occupant.rank;
+    const nearbyEnemies = pieces.filter(
+      (p) => p.alive && p.playerSlot !== botSlot &&
+        Math.max(Math.abs(p.row - row), Math.abs(p.col - col)) <= lookoutRadius,
+    );
+
+    let atRisk = false;
+    for (const enemy of nearbyEnemies) {
+      const effectiveRank = memory.get(enemy.id) ?? (enemy.rank != null ? enemy.rank : unknownRankEstimate);
+      const outcome = resolveCombat(effectiveRank, guardRank);
+      if (outcome === COMBAT_OUTCOME.ATTACKER_WINS || outcome === COMBAT_OUTCOME.TIE) {
+        atRisk = true;
+        break;
+      }
+    }
+
+    results.push({
+      row,
+      col,
+      status: atRisk ? 'atRisk' : 'safe',
+      occupiedByPieceId: occupant.id,
+    });
+  }
+
+  return results;
 }

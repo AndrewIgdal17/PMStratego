@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findOwnFlag, estimateUnknownEnemyRank } from '../../web/js/flagDefense.js';
+import { findOwnFlag, estimateUnknownEnemyRank, assessGuardSquares } from '../../web/js/flagDefense.js';
 import { RANK } from '../../web/js/rules/pieces.js';
 
 test('findOwnFlag returns the bot\'s alive Flag piece', () => {
@@ -98,4 +98,95 @@ test('estimateUnknownEnemyRank falls back to the single remaining rank when pool
   const result = estimateUnknownEnemyRank([], history, 2);
   // Only Scouts (rank 9) remain. Average of [9,9,9,9,9,9,9,9] = 9.
   assert.equal(result, 9);
+});
+
+test('assessGuardSquares marks an empty neighbor as open', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const pieces = [flag];
+  const memory = new Map();
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const openSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(openSquare.status, 'open');
+});
+
+test('assessGuardSquares marks a guarded square as safe when no enemies are nearby', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const guard = { id: 'colonel-1', playerSlot: 2, rank: 3, row: 1, col: 5, alive: true };
+  const pieces = [flag, guard];
+  const memory = new Map();
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const guardedSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(guardedSquare.status, 'safe');
+  assert.equal(guardedSquare.occupiedByPieceId, 'colonel-1');
+});
+
+test('assessGuardSquares marks a guarded square as atRisk when a stronger enemy is within radius', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const guard = { id: 'sergeant-1', playerSlot: 2, rank: 7, row: 1, col: 5, alive: true };
+  const enemy = { id: 'marshal-e', playerSlot: 1, rank: 1, row: 2, col: 5, alive: true };
+  const pieces = [flag, guard, enemy];
+  const memory = new Map([['marshal-e', 1]]);
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const guardedSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(guardedSquare.status, 'atRisk');
+});
+
+test('assessGuardSquares uses unknownRankEstimate for unrevealed enemies within radius', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const guard = { id: 'captain-1', playerSlot: 2, rank: 5, row: 1, col: 5, alive: true };
+  const enemy = { id: 'unknown-e', playerSlot: 1, rank: null, row: 2, col: 4, alive: true };
+  const pieces = [flag, guard, enemy];
+  const memory = new Map();
+  const result = assessGuardSquares(pieces, flag, 2, memory, 3, 2);
+  const guardedSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(guardedSquare.status, 'atRisk');
+});
+
+test('assessGuardSquares skips off-board neighbors (Flag in corner)', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 0, alive: true };
+  const pieces = [flag];
+  const memory = new Map();
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  assert.equal(result.length, 2);
+});
+
+test('assessGuardSquares skips lake neighbors', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 3, col: 2, alive: true };
+  const pieces = [flag];
+  const memory = new Map();
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const lakeNeighbor = result.find((s) => s.row === 4 && s.col === 2);
+  assert.equal(lakeNeighbor, undefined);
+});
+
+test('assessGuardSquares omits squares occupied by an enemy piece (breached)', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const enemy = { id: 'enemy-1', playerSlot: 1, rank: null, row: 1, col: 5, alive: true };
+  const pieces = [flag, enemy];
+  const memory = new Map();
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const breachedSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(breachedSquare, undefined);
+});
+
+test('assessGuardSquares: guard safe when enemy is outside lookoutRadius', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const guard = { id: 'sergeant-1', playerSlot: 2, rank: 7, row: 1, col: 5, alive: true };
+  const enemy = { id: 'marshal-e', playerSlot: 1, rank: 1, row: 4, col: 5, alive: true };
+  const pieces = [flag, guard, enemy];
+  const memory = new Map([['marshal-e', 1]]);
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const guardedSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(guardedSquare.status, 'safe');
+});
+
+test('assessGuardSquares: atRisk when enemy would TIE (tie removes the guard)', () => {
+  const flag = { id: 'flag-1', playerSlot: 2, rank: 'FLAG', row: 0, col: 5, alive: true };
+  const guard = { id: 'captain-1', playerSlot: 2, rank: 5, row: 1, col: 5, alive: true };
+  const enemy = { id: 'captain-e', playerSlot: 1, rank: 5, row: 2, col: 5, alive: true };
+  const pieces = [flag, guard, enemy];
+  const memory = new Map([['captain-e', 5]]);
+  const result = assessGuardSquares(pieces, flag, 2, memory, 5, 2);
+  const guardedSquare = result.find((s) => s.row === 1 && s.col === 5);
+  assert.equal(guardedSquare.status, 'atRisk');
 });
