@@ -17,7 +17,13 @@
   <div class="page-shell game">
     <main class="page-frame">
       <div class="game-layout">
-        <div id="board" class="board"></div>
+        <div class="board-frame">
+          <div class="board-col-labels" id="board-col-labels"></div>
+          <div class="board-inner">
+            <div class="board-row-labels" id="board-row-labels"></div>
+            <div id="board" class="board"></div>
+          </div>
+        </div>
         <div class="graveyards-area">
           <div class="graveyard" id="graveyard-enemy">
             <div class="graveyard-header" data-target="graveyard-enemy-body">
