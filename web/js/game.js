@@ -273,7 +273,43 @@ function toAbsolute(displayRow, displayCol) {
   return { row: displayRow, col: displayCol };
 }
 
+function toDisplay(absRow, absCol) {
+  if (mySlot === 2) {
+    return { row: BOARD_SIZE - 1 - absRow, col: BOARD_SIZE - 1 - absCol };
+  }
+  return { row: absRow, col: absCol };
+}
+
+function formatCoord(displayRow, displayCol) {
+  return String.fromCharCode(65 + displayCol) + (displayRow + 1);
+}
+
+function formatAbsCoord(absRow, absCol) {
+  const d = toDisplay(absRow, absCol);
+  return formatCoord(d.row, d.col);
+}
+
 function renderBoard() {
+  const colLabels = document.getElementById("board-col-labels");
+  if (colLabels) {
+    colLabels.innerHTML = "";
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      const span = document.createElement("span");
+      span.textContent = String.fromCharCode(65 + c);
+      colLabels.appendChild(span);
+    }
+  }
+
+  const rowLabels = document.getElementById("board-row-labels");
+  if (rowLabels) {
+    rowLabels.innerHTML = "";
+    for (let r = 0; r < BOARD_SIZE; r++) {
+      const span = document.createElement("span");
+      span.textContent = String(r + 1);
+      rowLabels.appendChild(span);
+    }
+  }
+
   const board = document.getElementById("board");
   board.innerHTML = "";
   board.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 1fr)`;
