@@ -1,7 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickBotFormationPlacements, chooseBotMove } from '../../web/js/bot.js';
+import { pickBotFormationPlacements, mapFormationToAbsolute, chooseBotMove } from '../../web/js/bot.js';
 import { ARMY_COMPOSITION, ARMY_SIZE } from '../../web/js/rules/pieces.js';
+
+// Regression test for a real bug: the bot placed formations.js cells at
+// the raw local row (0-3) with no slot-2 remap, so a formation's back rank
+// (local row 3, where the Flag and most Bombs live) ended up on absolute
+// row 3 -- the row right next to the lake, i.e. the bot's actual FRONT --
+// while its front rank (local row 0) ended up on the bot's actual back row.
+test('mapFormationToAbsolute keeps a formation\'s back rank at the bot\'s true back row, not the front', () => {
+  const cells = [
+    [0, 0, '9'],     // local front row (nearest midline)
+    [3, 9, 'FLAG'],  // local back row (farthest from midline)
+  ];
+  const placements = mapFormationToAbsolute(cells, 2);
+  assert.deepEqual(placements, [
+    { rank: '9', row: 3, col: 0 },     // slot 2's front row is absolute row 3
+    { rank: 'FLAG', row: 0, col: 9 },  // slot 2's back row is absolute row 0
+  ]);
+});
 
 test('pickBotFormationPlacements returns a full, valid army with no duplicate squares', () => {
   const placements = pickBotFormationPlacements();

@@ -1,17 +1,25 @@
 // web/js/bot.js
 import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
+import { ABSOLUTE_ROWS_BY_SLOT } from "./formationRowMap.js";
 import { getLegalMoves } from "./rules/game.js";
 import { resolveCombat, COMBAT_OUTCOME } from "./rules/combat.js";
 
 const ALL_FORMATIONS = [...DEFENSIVE_FORMATIONS, ...AGGRESSIVE_FORMATIONS];
+const BOT_SLOT = 2;
 
-// The bot is always seated as player slot 2. Slot 2's absolute board rows
-// (0-3) already match the local row numbering formations.js stores cells
-// in, so -- unlike slot 1's setup screen (see setup.js's ABSOLUTE_ROWS) --
-// no row-mirroring is needed here.
+// The bot is always seated as player slot 2, which needs the same local-row
+// -> absolute-row remap the human setup screen applies (see
+// formationRowMap.js) -- without it, a formation's back rank (where the
+// Flag and most Bombs live) lands on the row nearest the lake instead of
+// the bot's true back row.
+export function mapFormationToAbsolute(cells, slot) {
+  const absoluteRows = ABSOLUTE_ROWS_BY_SLOT[slot];
+  return cells.map(([row, col, rank]) => ({ rank, row: absoluteRows[row], col }));
+}
+
 export function pickBotFormationPlacements() {
   const formation = ALL_FORMATIONS[Math.floor(Math.random() * ALL_FORMATIONS.length)];
-  return formation.cells.map(([row, col, rank]) => ({ rank, row, col }));
+  return mapFormationToAbsolute(formation.cells, BOT_SLOT);
 }
 
 function toRulesPiece(row) {

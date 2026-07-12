@@ -2,6 +2,7 @@
 import { supabase, callFunction } from "./supabaseClient.js";
 import { ARMY_COMPOSITION } from "./rules/pieces.js";
 import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
+import { ABSOLUTE_ROWS_BY_SLOT } from "./formationRowMap.js";
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
@@ -79,7 +80,7 @@ const token = await ensureSession();
 // slot 2), and slot 1's territory is drawn top-to-bottom OPPOSITE to slot
 // 2's -- so we need this mapping before sending placements to the server.
 const slot = Number(localStorage.getItem(`stratego:${roomCode}:slot`));
-const ABSOLUTE_ROWS = slot === 1 ? [6, 7, 8, 9] : [3, 2, 1, 0]; // index 0 = nearest midline, for both slots
+const ABSOLUTE_ROWS = ABSOLUTE_ROWS_BY_SLOT[slot];
 
 const LOCAL_ROWS = [0, 1, 2, 3];
 const COLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
