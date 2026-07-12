@@ -7,28 +7,41 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <main class="home">
-    <h1>Stratego</h1>
-    <section class="panel">
-      <h2>Start a new game</h2>
-      <button id="new-game-btn" class="btn-primary">New Game</button>
-      <p id="new-game-result" class="result" hidden></p>
-    </section>
-    <section class="panel">
-      <h2>Play vs Bot</h2>
-      <p class="hint-text">Practice or bug-test alone — the bot plays legal moves automatically.</p>
-      <button id="play-bot-btn" class="btn-primary">Play vs Bot</button>
-      <p id="play-bot-error" class="error" hidden></p>
-    </section>
-    <section class="panel">
-      <h2>Join a game</h2>
-      <form id="join-form">
-        <input id="room-code-input" placeholder="Room code" maxlength="8" autocapitalize="characters" required />
-        <button type="submit">Join</button>
-      </form>
-      <p id="join-error" class="error" hidden></p>
-    </section>
-  </main>
+  <nav class="top-nav">
+    <a href="index.html" class="nav-brand">Stratego</a>
+  </nav>
+  <div class="page-shell home">
+    <main class="page-frame">
+      <section class="panel">
+        <h2>Start a new game</h2>
+        <button id="new-game-btn" class="btn-primary">New Game</button>
+        <p id="new-game-result" class="result" hidden></p>
+      </section>
+      <section class="panel">
+        <h2>Play vs Bot</h2>
+        <p class="hint-text">Practice or bug-test alone — the bot plays legal moves automatically.</p>
+        <button id="play-bot-btn" class="btn-primary">Play vs Bot</button>
+        <p id="play-bot-error" class="error" hidden></p>
+      </section>
+      <section class="panel">
+        <h2>Watch a game</h2>
+        <p class="hint-text">Spectate a live game — see all pieces, both sides.</p>
+        <form id="spectate-form">
+          <input id="spectate-code-input" placeholder="Room code" maxlength="8" autocapitalize="characters" required />
+          <button type="submit">Spectate</button>
+        </form>
+        <p id="spectate-error" class="error" hidden></p>
+      </section>
+      <section class="panel">
+        <h2>Join a game</h2>
+        <form id="join-form">
+          <input id="room-code-input" placeholder="Room code" maxlength="8" autocapitalize="characters" required />
+          <button type="submit">Join</button>
+        </form>
+        <p id="join-error" class="error" hidden></p>
+      </section>
+    </main>
+  </div>
   <script type="module" src="js/home.js"></script>
 </body>
 </html>

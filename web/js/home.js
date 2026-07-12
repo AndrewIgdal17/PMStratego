@@ -83,3 +83,10 @@ document.getElementById("play-bot-btn").addEventListener("click", async () => {
     button.disabled = false;
   }
 });
+
+document.getElementById("spectate-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const roomCode = document.getElementById("spectate-code-input").value.trim().toUpperCase();
+  if (!roomCode) return;
+  location.href = `game.html?code=${roomCode}&spectate=1`;
+});
