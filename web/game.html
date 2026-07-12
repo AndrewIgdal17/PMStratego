@@ -7,24 +7,51 @@
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <main class="game">
-    <div id="board" class="board"></div>
-    <aside class="side-panel">
-      <p id="turn-indicator" class="turn-indicator"></p>
-      <div class="game-actions">
-        <button id="resign-btn" class="btn-danger">Resign</button>
-        <button id="rematch-btn" class="btn-primary" hidden>Rematch</button>
+  <nav class="top-nav">
+    <a href="index.html" class="nav-brand">Stratego</a>
+    <div class="nav-links">
+      <span id="nav-room-code" class="nav-context"></span>
+      <a href="index.html">Home</a>
+    </div>
+  </nav>
+  <div class="page-shell game">
+    <main class="page-frame">
+      <div class="game-layout">
+        <div id="board" class="board"></div>
+        <div class="graveyards-area">
+          <div class="graveyard" id="graveyard-enemy">
+            <div class="graveyard-header" data-target="graveyard-enemy-body">
+              <span class="graveyard-label enemy-label">Enemy Losses</span>
+              <span class="graveyard-chevron">▼</span>
+            </div>
+            <div class="graveyard-body" id="graveyard-enemy-body"></div>
+          </div>
+          <div class="graveyard" id="graveyard-mine">
+            <div class="graveyard-header" data-target="graveyard-mine-body">
+              <span class="graveyard-label back-label">Your Losses</span>
+              <span class="graveyard-chevron">▼</span>
+            </div>
+            <div class="graveyard-body" id="graveyard-mine-body"></div>
+          </div>
+        </div>
+        <aside class="side-panel">
+          <p id="turn-indicator" class="turn-indicator"></p>
+          <div class="game-actions">
+            <button id="resign-btn" class="btn-danger">Resign</button>
+            <button id="rematch-btn" class="btn-primary" hidden>Rematch</button>
+          </div>
+          <h3>Move log</h3>
+          <ul id="move-log"></ul>
+          <h3>Chat</h3>
+          <ul id="chat-log"></ul>
+          <form id="chat-form">
+            <input id="chat-input" maxlength="500" placeholder="Say something..." />
+            <button type="submit">Send</button>
+          </form>
+        </aside>
       </div>
-      <h3>Move log</h3>
-      <ul id="move-log"></ul>
-      <h3>Chat</h3>
-      <ul id="chat-log"></ul>
-      <form id="chat-form">
-        <input id="chat-input" maxlength="500" placeholder="Say something..." />
-        <button type="submit">Send</button>
-      </form>
-    </aside>
-  </main>
+    </main>
+  </div>
   <script type="module" src="js/game.js"></script>
 </body>
 </html>
