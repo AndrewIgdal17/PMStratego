@@ -366,16 +366,7 @@ button:active:not(:disabled) {
   background: #d4b88a;
 }
 
-.territory-cell.occupied {
-  background: #a8c9a8;
-  font-weight: bold;
-  color: #1a3a1a;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.territory-cell.occupied:hover {
-  background: #90b590;
-}
+/* Occupied cells keep the wood background; the SVG token provides its own fill */
 
 .formation-label {
   margin: 0 0 0.5rem;

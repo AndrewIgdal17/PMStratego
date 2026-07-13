@@ -3,6 +3,7 @@ import { supabase, callFunction } from "./supabaseClient.js";
 import { ARMY_COMPOSITION } from "./rules/pieces.js";
 import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
 import { ABSOLUTE_ROWS_BY_SLOT } from "./formationRowMap.js";
+import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
 
 const params = new URLSearchParams(location.search);
 const roomCode = params.get("code");
@@ -39,6 +40,7 @@ function initColorPicker() {
       container.querySelectorAll('.color-swatch').forEach((s) => s.classList.remove('selected'));
       swatch.classList.add('selected');
       localStorage.setItem(`stratego:${roomCode}:color`, color.hex);
+      if (typeof renderGrid === "function") renderGrid();
     });
 
     container.appendChild(swatch);
@@ -147,18 +149,6 @@ initPersonalityControls();
 const LOCAL_ROWS = [0, 1, 2, 3];
 const COLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-const RANK_NAME = {
-  '1': 'Marshal', '2': 'General', '3': 'Colonel', '4': 'Major',
-  '5': 'Captain', '6': 'Lieutenant', '7': 'Sergeant', '8': 'Miner',
-  '9': 'Scout', '10': 'Spy', 'BOMB': 'Bomb', 'FLAG': 'Flag',
-};
-
-const RANK_SHORT = {
-  '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
-  '5': 'Cp', '6': 'Lt', '7': 'Sg', '8': 'Mi',
-  '9': 'Sc', '10': 'Sp', 'BOMB': 'B', 'FLAG': 'F',
-};
-
 let placements = new Map(); // key "row,col" -> rank
 let formationIndex = { defensive: -1, aggressive: -1 };
 
@@ -241,7 +231,8 @@ function renderGrid() {
       const key = `${row},${col}`;
       const rank = placements.get(key);
       if (rank) {
-        cell.textContent = RANK_SHORT[rank] ?? rank;
+        const playerColor = localStorage.getItem(`stratego:${roomCode}:color`) || DEFAULT_PLAYER_COLOR;
+        cell.appendChild(createTokenSVG(rank, true, playerColor));
         cell.classList.add("occupied");
       }
       cell.addEventListener("click", () => {
