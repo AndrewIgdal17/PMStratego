@@ -173,6 +173,7 @@ async function refreshMoveLog(gameId) {
     list.appendChild(li);
   }
   renderGraveyards(data);
+  renderBoard();
 }
 
 async function refreshChat(gameId) {
@@ -258,6 +259,31 @@ function formatAbsCoord(absRow, absCol) {
   return formatCoord(d.row, d.col);
 }
 
+function getPostCombatRevealRank(pieceId) {
+  if (!lastMoveData?.length) return null;
+  const lastMove = lastMoveData[lastMoveData.length - 1];
+  if (lastMove.move_type !== "attack" || lastMove.outcome === "TIE") return null;
+
+  if (lastMove.outcome === "ATTACKER_WINS") {
+    if (pieceId !== lastMove.piece_id) return null;
+    const attacker = piecesById.get(pieceId);
+    if (!attacker?.alive) return null;
+    const isEnemy = isSpectator ? attacker.player_slot !== 1 : !attacker.is_mine;
+    return isEnemy ? lastMove.attacker_rank : null;
+  }
+
+  if (lastMove.outcome === "DEFENDER_WINS") {
+    const defender = [...piecesById.values()].find(
+      (p) => p.alive && p.row_idx === lastMove.to_row && p.col_idx === lastMove.to_col
+    );
+    if (!defender || defender.piece_id !== pieceId) return null;
+    const isEnemy = isSpectator ? defender.player_slot !== 1 : !defender.is_mine;
+    return isEnemy ? lastMove.defender_rank : null;
+  }
+
+  return null;
+}
+
 function renderBoard() {
   const colLabels = document.getElementById("board-col-labels");
   if (colLabels) {
@@ -293,7 +319,12 @@ function renderBoard() {
       const piece = [...piecesById.values()].find((p) => p.row_idx === row && p.col_idx === col && p.alive);
       if (piece) {
         const isFriendly = isSpectator ? piece.player_slot === 1 : piece.is_mine;
-        cell.appendChild(createTokenSVG(piece.rank, isFriendly, getPlayerColor()));
+        let displayRank = piece.rank;
+        if (!isFriendly && displayRank == null) {
+          const revealedRank = getPostCombatRevealRank(piece.piece_id);
+          if (revealedRank != null) displayRank = revealedRank;
+        }
+        cell.appendChild(createTokenSVG(displayRank, isFriendly, getPlayerColor()));
         if (piece.piece_id === selectedPieceId) cell.classList.add("selected");
       }
 
