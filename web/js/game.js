@@ -144,6 +144,8 @@ async function refreshMoveLog(gameId) {
   lastMoveData = data;
 
   const list = document.getElementById("move-log");
+  const wasAtBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 5;
+  const savedScrollTop = list.scrollTop;
   list.innerHTML = "";
   for (const m of data) {
     const li = document.createElement("li");
@@ -173,6 +175,11 @@ async function refreshMoveLog(gameId) {
     list.appendChild(li);
   }
   renderGraveyards(data);
+  if (wasAtBottom) {
+    list.scrollTop = list.scrollHeight;
+  } else {
+    list.scrollTop = savedScrollTop;
+  }
   renderBoard();
 }
 
