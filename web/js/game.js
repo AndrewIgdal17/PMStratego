@@ -2,6 +2,7 @@ import { supabase, callFunction } from "./supabaseClient.js";
 import { BOARD_SIZE, isLake } from "./rules/board.js";
 import { chooseBotMove } from "./bot.js";
 import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
+import { initAudio, playSound, playMusic, setSfxVolume, setMusicVolume, toggleMuteAll, getAudioState } from "./audio.js";
 
 const RANK_SHORT = {
   '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
@@ -52,6 +53,7 @@ let selectedPieceId = null;
 const BOT_SLOT = 2;
 let botMoveScheduled = false;
 let lastMoveData = null;
+let lastTurnSlot = null;
 
 async function loadGameId() {
   const { data, error } = await supabase.from("games").select("id").eq("room_code", roomCode).single();
@@ -120,6 +122,10 @@ function renderTurnIndicator() {
     el.textContent = gameRow.current_turn_slot === mySlot
       ? "Your turn"
       : gameRow.is_bot_game ? "Bot's turn..." : "Waiting for opponent...";
+    if (gameRow.current_turn_slot === mySlot && lastTurnSlot !== mySlot && lastTurnSlot !== null) {
+      playSound('yourTurn');
+    }
+    lastTurnSlot = gameRow.current_turn_slot;
   }
 
   if (isSpectator) {
@@ -462,6 +468,7 @@ async function handleCellClick(row, col, piece) {
   if (selectedPieceId) {
     if (piece && piece.is_mine) {
       selectedPieceId = piece.piece_id;
+      playSound('select');
       renderBoard();
       return;
     }
@@ -470,7 +477,23 @@ async function handleCellClick(row, col, piece) {
     const to = { row, col };
     selectedPieceId = null;
     try {
-      await callFunction("make-move", { token, from, to });
+      const result = await callFunction("make-move", { token, from, to });
+      if (result.combatResult) {
+        const cr = result.combatResult;
+        if (cr.defenderRank === 'FLAG') {
+          playSound('flagTaken');
+        } else if (cr.outcome === 'DEFENDER_WINS' && cr.defenderRank === 'BOMB') {
+          playSound('bomb');
+        } else if (cr.outcome === 'ATTACKER_WINS') {
+          playSound('attackWin');
+        } else if (cr.outcome === 'DEFENDER_WINS') {
+          playSound('attackLose');
+        } else if (cr.outcome === 'TIE') {
+          playSound('tie');
+        }
+      } else {
+        playSound('move');
+      }
     } catch (err) {
       alert(`Move rejected: ${err.message}`);
     }
@@ -481,6 +504,7 @@ async function handleCellClick(row, col, piece) {
 
   if (piece && piece.is_mine) {
     selectedPieceId = piece.piece_id;
+    playSound('select');
     renderBoard();
   }
 }
@@ -547,12 +571,67 @@ document.getElementById("decline-rematch-btn").addEventListener("click", () => {
   pendingRematchCode = null;
 });
 
+function setupAudioControls() {
+  const state = getAudioState();
+
+  const muteAllCb = document.getElementById('mute-all-cb');
+  const muteAllSide = document.getElementById('mute-all-side');
+  const sfxVolNav = document.getElementById('sfx-vol-nav');
+  const sfxVolSide = document.getElementById('sfx-vol-side');
+  const musicVolNav = document.getElementById('music-vol-nav');
+  const musicVolSide = document.getElementById('music-vol-side');
+  const audioNavBtn = document.getElementById('audio-nav-btn');
+  const audioDropdown = document.getElementById('audio-nav-dropdown');
+
+  function syncUI() {
+    const s = getAudioState();
+    if (muteAllCb) muteAllCb.checked = s.allMuted;
+    if (muteAllSide) muteAllSide.checked = s.allMuted;
+    if (sfxVolNav) sfxVolNav.value = Math.round(s.sfxVolume * 100);
+    if (sfxVolSide) sfxVolSide.value = Math.round(s.sfxVolume * 100);
+    if (musicVolNav) musicVolNav.value = Math.round(s.musicVolume * 100);
+    if (musicVolSide) musicVolSide.value = Math.round(s.musicVolume * 100);
+    if (audioNavBtn) audioNavBtn.textContent = s.allMuted ? '🔇' : '🔊';
+  }
+
+  syncUI();
+
+  if (audioNavBtn && audioDropdown) {
+    audioNavBtn.addEventListener('click', () => {
+      audioDropdown.hidden = !audioDropdown.hidden;
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.audio-nav-wrapper')) {
+        audioDropdown.hidden = true;
+      }
+    });
+  }
+
+  [muteAllCb, muteAllSide].forEach((cb) => {
+    if (cb) cb.addEventListener('change', () => { toggleMuteAll(); syncUI(); });
+  });
+
+  [sfxVolNav, sfxVolSide].forEach((slider) => {
+    if (slider) slider.addEventListener('input', (e) => { setSfxVolume(e.target.value / 100); syncUI(); });
+  });
+
+  [musicVolNav, musicVolSide].forEach((slider) => {
+    if (slider) slider.addEventListener('input', (e) => { setMusicVolume(e.target.value / 100); syncUI(); });
+  });
+}
+
 async function init() {
   gameId = await loadGameId();
   await refreshGameRow(gameId);
   await refreshState();
   await refreshMoveLog(gameId);
   await refreshChat(gameId);
+
+  if (!isSpectator) {
+    await initAudio();
+    playMusic();
+    setupAudioControls();
+  }
 
   supabase
     .channel(`game-${gameId}`)
