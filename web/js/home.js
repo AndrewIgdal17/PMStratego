@@ -94,25 +94,95 @@ document.getElementById("spectate-form").addEventListener("submit", (event) => {
   location.href = `game.html?code=${roomCode}&spectate=1`;
 });
 
-async function loadLeaderboard() {
-  const { data, error } = await supabase.rpc("get_leaderboard", { p_limit: 10, p_offset: 0 });
+const LEADERBOARD_CATEGORIES = [
+  { key: "rating", label: "Rating" },
+  { key: "spy_rate", label: "Best Spy%" },
+  { key: "trade_efficiency", label: "Trade King" },
+  { key: "reveal_efficiency", label: "Fog Breaker" },
+  { key: "bomb_craft", label: "Bomb Craft" },
+];
+
+const MICRO_PERCENT_CATEGORIES = new Set(["spy_rate", "reveal_efficiency", "bomb_craft"]);
+
+function renderLeaderboardTabs() {
+  const panel = document.querySelector(".leaderboard-panel");
+  if (!panel) return;
+  const table = panel.querySelector("table");
+  if (!table) return;
+
+  const tabs = document.createElement("div");
+  tabs.className = "leaderboard-tabs";
+  tabs.innerHTML = LEADERBOARD_CATEGORIES.map(({ key, label }) =>
+    `<button type="button" class="lb-tab ${key === "rating" ? "active" : ""}" data-cat="${key}">${label}</button>`
+  ).join("");
+  panel.insertBefore(tabs, table);
+
+  tabs.addEventListener("click", (e) => {
+    const btn = e.target.closest(".lb-tab");
+    if (!btn) return;
+    tabs.querySelectorAll(".lb-tab").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    loadLeaderboard(btn.dataset.cat);
+  });
+}
+
+function setLeaderboardHead(category) {
+  const head = document.querySelector("#leaderboard-table thead tr");
+  if (!head) return;
+
+  if (category === "rating") {
+    head.innerHTML = "<th>#</th><th>Player</th><th>Rating</th><th>W/L</th><th>Win%</th><th>Streak</th>";
+    return;
+  }
+
+  const label = LEADERBOARD_CATEGORIES.find((c) => c.key === category)?.label ?? "Value";
+  head.innerHTML = `<th>#</th><th>Player</th><th colspan="4">${label}</th>`;
+}
+
+async function loadLeaderboard(category = "rating") {
   const body = document.getElementById("leaderboard-body");
   const empty = document.getElementById("leaderboard-empty");
   if (!body) return;
-  if (error || !data || data.length === 0) {
-    if (empty) empty.hidden = false;
+
+  setLeaderboardHead(category);
+
+  if (category === "rating") {
+    const { data, error } = await supabase.rpc("get_leaderboard", { p_limit: 10, p_offset: 0 });
+    if (error || !data || data.length === 0) {
+      if (empty) empty.hidden = false;
+      body.innerHTML = "";
+      return;
+    }
+    if (empty) empty.hidden = true;
+    body.innerHTML = data.map((p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${p.username}</a></td>
+        <td>${p.rating}</td>
+        <td>${p.wins}/${p.losses}</td>
+        <td>${p.win_rate}%</td>
+        <td>${p.longest_streak}</td>
+      </tr>
+    `).join("");
     return;
   }
+
+  const { data, error } = await supabase.rpc("get_micro_leaderboard", { p_category: category, p_limit: 10 });
+  if (error || !data || data.length === 0) {
+    if (empty) empty.hidden = false;
+    body.innerHTML = "";
+    return;
+  }
+  if (empty) empty.hidden = true;
+  const suffix = MICRO_PERCENT_CATEGORIES.has(category) ? "%" : "";
   body.innerHTML = data.map((p, i) => `
     <tr>
       <td>${i + 1}</td>
       <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${p.username}</a></td>
-      <td>${p.rating}</td>
-      <td>${p.wins}/${p.losses}</td>
-      <td>${p.win_rate}%</td>
-      <td>${p.longest_streak}</td>
+      <td colspan="4">${p.value}${suffix}</td>
     </tr>
   `).join("");
 }
 
+renderLeaderboardTabs();
 loadLeaderboard();

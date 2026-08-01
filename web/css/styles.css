@@ -1125,3 +1125,7 @@ button:active:not(:disabled) {
 .curve-cell { width: 130px; padding: 0.2rem 0.4rem !important; vertical-align: middle; }
 .material-spark { width: 120px; height: 30px; display: block; }
 .leaderboard-panel { margin-top: 1rem; }
+.leaderboard-tabs { display: flex; gap: 0.3rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+.lb-tab { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ink); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
+.lb-tab.active { background: rgba(100,200,150,0.2); border-color: rgba(100,200,150,0.5); }
+.lb-tab:hover { background: rgba(255,255,255,0.1); }
