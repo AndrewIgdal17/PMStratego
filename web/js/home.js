@@ -1,4 +1,4 @@
-import { callFunction } from "./supabaseClient.js";
+import { supabase, callFunction } from "./supabaseClient.js";
 import { renderNavAuth } from "./auth.js";
 import { pickBotFormationPlacements } from "./bot.js";
 
@@ -93,3 +93,26 @@ document.getElementById("spectate-form").addEventListener("submit", (event) => {
   if (!roomCode) return;
   location.href = `game.html?code=${roomCode}&spectate=1`;
 });
+
+async function loadLeaderboard() {
+  const { data, error } = await supabase.rpc("get_leaderboard", { p_limit: 10, p_offset: 0 });
+  const body = document.getElementById("leaderboard-body");
+  const empty = document.getElementById("leaderboard-empty");
+  if (!body) return;
+  if (error || !data || data.length === 0) {
+    if (empty) empty.hidden = false;
+    return;
+  }
+  body.innerHTML = data.map((p, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${p.username}</a></td>
+      <td>${p.rating}</td>
+      <td>${p.wins}/${p.losses}</td>
+      <td>${p.win_rate}%</td>
+      <td>${p.longest_streak}</td>
+    </tr>
+  `).join("");
+}
+
+loadLeaderboard();

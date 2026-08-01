@@ -977,3 +977,4 @@ button:active:not(:disabled) {
 .history-table .draw { color: #cc6; }
 .history-table a { color: #5b9bd5; text-decoration: none; }
 .history-table a:hover { text-decoration: underline; }
+.leaderboard-panel { margin-top: 1rem; }
