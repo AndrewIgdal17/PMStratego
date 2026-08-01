@@ -1,5 +1,8 @@
 // web/js/setup.js
 import { supabase, callFunction } from "./supabaseClient.js";
+import { renderNavAuth } from "./auth.js";
+
+renderNavAuth(document.getElementById("nav-auth"));
 import { ARMY_COMPOSITION } from "./rules/pieces.js";
 import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
 import { ABSOLUTE_ROWS_BY_SLOT } from "./formationRowMap.js";

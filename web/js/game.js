@@ -1,4 +1,7 @@
 import { supabase, callFunction } from "./supabaseClient.js";
+import { renderNavAuth } from "./auth.js";
+
+renderNavAuth(document.getElementById("nav-auth"));
 import { BOARD_SIZE, isLake } from "./rules/board.js";
 import { chooseBotMove } from "./bot.js";
 import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";

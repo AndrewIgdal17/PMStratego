@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAuthToken } from "./auth.js";
 
 // Public anon key -- safe to ship in frontend JS. It grants no access to
 // `pieces` or `game_players` (no RLS policy = no access); every sensitive
@@ -9,7 +10,9 @@ const SUPABASE_ANON_KEY = "sb_publishable_mxrVhbM1gbEixsbuhyn6sw_eL7r6dRX";
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export async function callFunction(name, body) {
-  const { data, error } = await supabase.functions.invoke(name, { body });
+  const token = getAuthToken();
+  const enrichedBody = token ? { ...body, authToken: token } : body;
+  const { data, error } = await supabase.functions.invoke(name, { body: enrichedBody });
   if (error) {
     let message = error.message ?? "UNKNOWN_ERROR";
     if (error.context && typeof error.context.json === "function") {

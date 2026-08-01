@@ -1,5 +1,8 @@
 import { callFunction } from "./supabaseClient.js";
+import { renderNavAuth } from "./auth.js";
 import { pickBotFormationPlacements } from "./bot.js";
+
+renderNavAuth(document.getElementById("nav-auth"));
 
 function storeSession(roomCode, token, slot) {
   localStorage.setItem(`stratego:${roomCode}:token`, token);
