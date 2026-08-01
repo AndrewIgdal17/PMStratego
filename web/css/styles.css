@@ -996,6 +996,8 @@ button:active:not(:disabled) {
 .radar-container { text-align: center; margin-bottom: 1.5rem; }
 .radar-container h3 { margin-bottom: 0.5rem; }
 .radar-chart { width: 220px; height: 220px; display: inline-block; }
+.radar-dot { cursor: help; position: relative; transition: r 0.15s; }
+.radar-dot:hover { r: 6; }
 
 .heatmap-container { text-align: center; margin: 1.5rem 0; }
 .heatmap-board { width: 240px; height: 240px; display: inline-block; }
@@ -1122,8 +1124,30 @@ button:active:not(:disabled) {
 .history-table .draw { color: #cc6; }
 .history-table a { color: #5b9bd5; text-decoration: none; }
 .history-table a:hover { text-decoration: underline; }
-.curve-cell { width: 130px; padding: 0.2rem 0.4rem !important; vertical-align: middle; }
-.material-spark { width: 120px; height: 30px; display: block; }
+.curve-cell { width: 190px; padding: 0.2rem 0.4rem !important; vertical-align: middle; }
+.material-spark-lg { width: 160px; height: 45px; display: block; }
+.curve-container { position: relative; display: inline-flex; align-items: center; gap: 4px; cursor: help; }
+.curve-container:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  color: #eee;
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  white-space: normal;
+  width: max-content;
+  max-width: 200px;
+  z-index: 99999;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.curve-badge { font-size: 0.7rem; font-weight: bold; }
 .leaderboard-panel { margin-top: 1rem; }
 .leaderboard-tabs { display: flex; gap: 0.3rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
 .lb-tab { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ink); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }

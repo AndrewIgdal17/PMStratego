@@ -152,12 +152,12 @@ function renderRadar(stats) {
   if (!stats || (stats.wins + stats.losses + stats.draws) < 1) return;
 
   const axes = [
-    { label: "Aggression", value: stats.total_moves > 0 ? stats.forward_moves / stats.total_moves : 0 },
-    { label: "Initiative", value: stats.combats_total > 0 ? stats.combats_initiated / stats.combats_total : 0 },
-    { label: "Fog Breaking", value: stats.reveal_attacks > 0 ? stats.reveal_wins / stats.reveal_attacks : 0 },
-    { label: "Bomb Craft", value: stats.total_bombs > 0 ? stats.bombs_detonated / stats.total_bombs : 0 },
-    { label: "Endgame", value: stats.marathon_games > 0 ? stats.marathon_wins / stats.marathon_games : 0.5 },
-    { label: "Material", value: stats.trade_efficiency_count > 0 ? Math.min(1, Math.max(0, (stats.trade_efficiency_sum / stats.trade_efficiency_count + 5) / 10)) : 0.5 },
+    { label: "Aggression", value: stats.total_moves > 0 ? stats.forward_moves / stats.total_moves : 0, desc: "% of moves advancing toward enemy", raw: stats.total_moves > 0 ? `${((stats.forward_moves / stats.total_moves) * 100).toFixed(0)}%` : "—" },
+    { label: "Initiative", value: stats.combats_total > 0 ? stats.combats_initiated / stats.combats_total : 0, desc: "% of combats you started", raw: stats.combats_total > 0 ? `${((stats.combats_initiated / stats.combats_total) * 100).toFixed(0)}%` : "—" },
+    { label: "Fog Breaking", value: stats.reveal_attacks > 0 ? stats.reveal_wins / stats.reveal_attacks : 0, desc: "Win rate on blind attacks", raw: stats.reveal_attacks > 0 ? `${((stats.reveal_wins / stats.reveal_attacks) * 100).toFixed(0)}%` : "—" },
+    { label: "Bomb Craft", value: stats.total_bombs > 0 ? stats.bombs_detonated / stats.total_bombs : 0, desc: "% of your Bombs that killed", raw: stats.total_bombs > 0 ? `${((stats.bombs_detonated / stats.total_bombs) * 100).toFixed(0)}%` : "—" },
+    { label: "Endgame", value: stats.marathon_games > 0 ? stats.marathon_wins / stats.marathon_games : 0.5, desc: "Win rate in 60+ move games", raw: stats.marathon_games > 0 ? `${((stats.marathon_wins / stats.marathon_games) * 100).toFixed(0)}%` : "—" },
+    { label: "Material", value: stats.trade_efficiency_count > 0 ? Math.min(1, Math.max(0, (stats.trade_efficiency_sum / stats.trade_efficiency_count + 5) / 10)) : 0.5, desc: "Net value per combat", raw: stats.trade_efficiency_count > 0 ? `${(stats.trade_efficiency_sum / stats.trade_efficiency_count).toFixed(1)}` : "—" },
   ];
 
   const cx = 100, cy = 100, r = 70;
@@ -189,7 +189,7 @@ function renderRadar(stats) {
   let dots = "";
   axes.forEach((a, i) => {
     const [dx, dy] = point(i, Math.max(0.05, a.value));
-    dots += `<circle cx="${dx}" cy="${dy}" r="2.5" fill="rgba(100,200,150,0.9)"/>`;
+    dots += `<circle cx="${dx}" cy="${dy}" r="4" fill="rgba(100,200,150,0.9)" class="radar-dot"><title>${a.label}: ${a.raw}\n${a.desc}</title></circle>`;
   });
 
   const svg = `<svg viewBox="0 0 200 200" class="radar-chart">${rings}${axisLines}${dataPolygon}${dots}</svg>`;
