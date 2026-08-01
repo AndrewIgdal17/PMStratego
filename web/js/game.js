@@ -574,50 +574,22 @@ document.getElementById("decline-rematch-btn").addEventListener("click", () => {
 function setupAudioControls() {
   const state = getAudioState();
 
-  const muteAllCb = document.getElementById('mute-all-cb');
   const muteAllSide = document.getElementById('mute-all-side');
-  const sfxVolNav = document.getElementById('sfx-vol-nav');
   const sfxVolSide = document.getElementById('sfx-vol-side');
-  const musicVolNav = document.getElementById('music-vol-nav');
   const musicVolSide = document.getElementById('music-vol-side');
-  const audioNavBtn = document.getElementById('audio-nav-btn');
-  const audioDropdown = document.getElementById('audio-nav-dropdown');
 
   function syncUI() {
     const s = getAudioState();
-    if (muteAllCb) muteAllCb.checked = s.allMuted;
     if (muteAllSide) muteAllSide.checked = s.allMuted;
-    if (sfxVolNav) sfxVolNav.value = Math.round(s.sfxVolume * 100);
     if (sfxVolSide) sfxVolSide.value = Math.round(s.sfxVolume * 100);
-    if (musicVolNav) musicVolNav.value = Math.round(s.musicVolume * 100);
     if (musicVolSide) musicVolSide.value = Math.round(s.musicVolume * 100);
-    if (audioNavBtn) audioNavBtn.textContent = s.allMuted ? '🔇' : '🔊';
   }
 
   syncUI();
 
-  if (audioNavBtn && audioDropdown) {
-    audioNavBtn.addEventListener('click', () => {
-      audioDropdown.hidden = !audioDropdown.hidden;
-    });
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.audio-nav-wrapper')) {
-        audioDropdown.hidden = true;
-      }
-    });
-  }
-
-  [muteAllCb, muteAllSide].forEach((cb) => {
-    if (cb) cb.addEventListener('change', () => { toggleMuteAll(); syncUI(); });
-  });
-
-  [sfxVolNav, sfxVolSide].forEach((slider) => {
-    if (slider) slider.addEventListener('input', (e) => { setSfxVolume(e.target.value / 100); syncUI(); });
-  });
-
-  [musicVolNav, musicVolSide].forEach((slider) => {
-    if (slider) slider.addEventListener('input', (e) => { setMusicVolume(e.target.value / 100); syncUI(); });
-  });
+  if (muteAllSide) muteAllSide.addEventListener('change', () => { toggleMuteAll(); syncUI(); });
+  if (sfxVolSide) sfxVolSide.addEventListener('input', (e) => { setSfxVolume(e.target.value / 100); syncUI(); });
+  if (musicVolSide) musicVolSide.addEventListener('input', (e) => { setMusicVolume(e.target.value / 100); syncUI(); });
 }
 
 async function init() {
