@@ -216,8 +216,18 @@ async function loadHistory(username) {
     return;
   }
 
+  const reversed = [...data].reverse();
+  const pills = reversed.map((g) => {
+    const result = g.winner_slot === g.player_slot ? "W" : (g.winner_slot ? "L" : "D");
+    const cls = result === "W" ? "pill-win" : (result === "L" ? "pill-loss" : "pill-draw");
+    const tooltip = `vs ${g.opponent_username || "Anon"} (${g.turn_number || "?"} moves)`;
+    return `<span class="form-pill ${cls}" data-tooltip="${tooltip}">${result}</span>`;
+  }).join("");
+  const sparkline = `<div class="form-sparkline"><span class="form-label">Last ${data.length}:</span>${pills}</div>`;
+
   el.innerHTML = `
     <h3>Game History</h3>
+    ${sparkline}
     <table class="history-table">
       <thead><tr><th>Opponent</th><th>Result</th><th>Moves</th><th>Date</th></tr></thead>
       <tbody>
