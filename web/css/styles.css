@@ -947,3 +947,33 @@ button:active:not(:disabled) {
   font-size: 1.5rem;
   cursor: pointer;
 }
+
+/* ── Profile page ── */
+
+.profile-header h2 { margin-bottom: 0.3rem; }
+.profile-meta { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.85rem; opacity: 0.9; margin-bottom: 1.5rem; }
+.rating-badge { font-weight: bold; }
+.rating-badge.provisional { opacity: 0.7; font-style: italic; }
+.archetype-badge { background: rgba(255,255,255,0.1); padding: 0.1rem 0.5rem; border-radius: 3px; text-transform: capitalize; }
+
+.stats-section { margin-bottom: 0.75rem; }
+.stats-section summary { cursor: pointer; font-weight: bold; font-size: 0.95rem; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.6rem; padding: 0.6rem 0; }
+.stat-item { display: flex; flex-direction: column; }
+.stat-label { font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.03em; }
+.stat-value { font-size: 1.1rem; font-weight: bold; }
+
+.achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; }
+.achievement-item { padding: 0.6rem; border-radius: 6px; text-align: center; font-size: 0.8rem; }
+.achievement-item.unlocked { background: rgba(100, 200, 100, 0.15); border: 1px solid rgba(100, 200, 100, 0.4); }
+.achievement-item.locked { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); opacity: 0.4; }
+.achievement-name { font-weight: 600; }
+
+.history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+.history-table th, .history-table td { padding: 0.45rem 0.6rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.history-table th { opacity: 0.7; font-size: 0.75rem; text-transform: uppercase; }
+.history-table .win { color: #6c6; font-weight: bold; }
+.history-table .loss { color: #c66; }
+.history-table .draw { color: #cc6; }
+.history-table a { color: #5b9bd5; text-decoration: none; }
+.history-table a:hover { text-decoration: underline; }
