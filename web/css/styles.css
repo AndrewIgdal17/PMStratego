@@ -989,6 +989,12 @@ button:active:not(:disabled) {
 .radar-container h3 { margin-bottom: 0.5rem; }
 .radar-chart { width: 220px; height: 220px; display: inline-block; }
 
+.heatmap-container { text-align: center; margin: 1.5rem 0; }
+.heatmap-board { width: 240px; height: 240px; display: inline-block; }
+.heatmap-legend { font-size: 0.7rem; margin-bottom: 0.3rem; display: flex; justify-content: center; gap: 1rem; }
+.legend-loss { color: #c66; }
+.legend-win { color: #6c6; }
+
 .stats-section { margin-bottom: 0.75rem; }
 .stats-section summary { cursor: pointer; font-weight: bold; font-size: 0.95rem; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.6rem; padding: 0.6rem 0; }

@@ -29,6 +29,7 @@ async function loadProfile(username) {
   renderHeader(player, stats);
   renderStats(stats);
   renderRadar(stats);
+  renderHeatmap(stats);
   renderAchievements(achievements, stats);
   loadHistory(username);
 }
@@ -163,6 +164,55 @@ function renderRadar(stats) {
   container.className = "radar-container";
   container.innerHTML = `<h3>Your Stratego DNA</h3>${svg}`;
   el.insertBefore(container, el.firstChild);
+}
+
+function renderHeatmap(stats) {
+  if (!stats || !stats.attack_heatmap || Object.keys(stats.attack_heatmap).length === 0) return;
+  const el = document.getElementById("profile-stats");
+
+  const cellSize = 22;
+  const padding = 2;
+  const boardSize = cellSize * 10 + padding * 9;
+  const lakeSquares = new Set(["4,2", "4,3", "5,2", "5,3", "4,6", "4,7", "5,6", "5,7"]);
+
+  let maxAttacks = 0;
+  for (const v of Object.values(stats.attack_heatmap)) {
+    if (v.attacks > maxAttacks) maxAttacks = v.attacks;
+  }
+
+  let cells = "";
+  for (let row = 0; row < 10; row++) {
+    for (let col = 0; col < 10; col++) {
+      const key = `${row},${col}`;
+      const x = col * (cellSize + padding);
+      const y = row * (cellSize + padding);
+
+      if (lakeSquares.has(key)) {
+        cells += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="rgba(50,80,120,0.4)" rx="2"/>`;
+        continue;
+      }
+
+      const data = stats.attack_heatmap[key];
+      if (!data || data.attacks === 0) {
+        cells += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="rgba(255,255,255,0.03)" rx="2"/>`;
+      } else {
+        const intensity = data.attacks / maxAttacks;
+        const winRate = data.wins / data.attacks;
+        const r = Math.round(200 * (1 - winRate) * intensity);
+        const g = Math.round(200 * winRate * intensity);
+        cells += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="rgba(${r},${g},50,${0.2 + intensity * 0.6})" rx="2"/>`;
+        if (data.attacks >= 3) {
+          cells += `<text x="${x + cellSize / 2}" y="${y + cellSize / 2 + 1}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.7)" font-size="7">${data.attacks}</text>`;
+        }
+      }
+    }
+  }
+
+  const svg = `<svg viewBox="0 0 ${boardSize} ${boardSize}" class="heatmap-board">${cells}</svg>`;
+  const container = document.createElement("div");
+  container.className = "heatmap-container";
+  container.innerHTML = `<h3>Combat Heatmap <span class="stat-help" data-tooltip="Where your attacks land on the board. Green = high win rate, Red = low win rate. Brighter = more attacks.">?</span></h3><div class="heatmap-legend"><span class="legend-loss">Losses</span><span class="legend-win">Wins</span></div>${svg}`;
+  el.appendChild(container);
 }
 
 const ACHIEVEMENT_LABELS = {
