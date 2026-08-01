@@ -28,6 +28,7 @@ async function loadProfile(username) {
   document.title = `Stratego — ${player.username}`;
   renderHeader(player, stats);
   renderStats(stats);
+  renderRadar(stats);
   renderAchievements(achievements);
   loadHistory(username);
 }
@@ -110,6 +111,58 @@ function renderStats(stats) {
       </div>
     </details>
   `).join("");
+}
+
+function renderRadar(stats) {
+  const el = document.getElementById("profile-stats");
+  if (!stats || (stats.wins + stats.losses + stats.draws) < 1) return;
+
+  const axes = [
+    { label: "Aggression", value: stats.total_moves > 0 ? stats.forward_moves / stats.total_moves : 0 },
+    { label: "Initiative", value: stats.combats_total > 0 ? stats.combats_initiated / stats.combats_total : 0 },
+    { label: "Fog Breaking", value: stats.reveal_attacks > 0 ? stats.reveal_wins / stats.reveal_attacks : 0 },
+    { label: "Bomb Craft", value: stats.total_bombs > 0 ? stats.bombs_detonated / stats.total_bombs : 0 },
+    { label: "Endgame", value: stats.marathon_games > 0 ? stats.marathon_wins / stats.marathon_games : 0.5 },
+    { label: "Material", value: stats.trade_efficiency_count > 0 ? Math.min(1, Math.max(0, (stats.trade_efficiency_sum / stats.trade_efficiency_count + 5) / 10)) : 0.5 },
+  ];
+
+  const cx = 100, cy = 100, r = 70;
+  const n = axes.length;
+  const angleStep = (2 * Math.PI) / n;
+
+  function point(i, scale) {
+    const angle = -Math.PI / 2 + i * angleStep;
+    return [cx + r * scale * Math.cos(angle), cy + r * scale * Math.sin(angle)];
+  }
+
+  let rings = "";
+  for (const ringScale of [0.25, 0.5, 0.75, 1.0]) {
+    const pts = Array.from({ length: n }, (_, i) => point(i, ringScale).join(",")).join(" ");
+    rings += `<polygon points="${pts}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>`;
+  }
+
+  let axisLines = "";
+  for (let i = 0; i < n; i++) {
+    const [px, py] = point(i, 1);
+    axisLines += `<line x1="${cx}" y1="${cy}" x2="${px}" y2="${py}" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>`;
+    const [lx, ly] = point(i, 1.2);
+    axisLines += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" fill="rgba(255,255,255,0.7)" font-size="7">${axes[i].label}</text>`;
+  }
+
+  const dataPts = axes.map((a, i) => point(i, Math.max(0.05, a.value)).join(",")).join(" ");
+  const dataPolygon = `<polygon points="${dataPts}" fill="rgba(100,200,150,0.25)" stroke="rgba(100,200,150,0.8)" stroke-width="1.5"/>`;
+
+  let dots = "";
+  axes.forEach((a, i) => {
+    const [dx, dy] = point(i, Math.max(0.05, a.value));
+    dots += `<circle cx="${dx}" cy="${dy}" r="2.5" fill="rgba(100,200,150,0.9)"/>`;
+  });
+
+  const svg = `<svg viewBox="0 0 200 200" class="radar-chart">${rings}${axisLines}${dataPolygon}${dots}</svg>`;
+  const container = document.createElement("div");
+  container.className = "radar-container";
+  container.innerHTML = `<h3>Your Stratego DNA</h3>${svg}`;
+  el.insertBefore(container, el.firstChild);
 }
 
 const ACHIEVEMENT_LABELS = {
