@@ -91,7 +91,7 @@ function renderStats(stats) {
       <div class="stats-grid">
         ${s.items.map(([label, value, desc]) => `
           <div class="stat-item">
-            <span class="stat-label">${label} <span class="stat-help" title="${desc}">?</span></span>
+            <span class="stat-label">${label} <span class="stat-help" data-tooltip="${desc}">?</span></span>
             <span class="stat-value">${value}</span>
           </div>
         `).join("")}
@@ -126,7 +126,7 @@ function renderAchievements(achievements) {
         return `
           <div class="achievement-item ${isUnlocked ? "unlocked" : "locked"}">
             <span class="achievement-name">${name}</span>
-            <span class="stat-help" title="${desc}">?</span>
+            <span class="stat-help" data-tooltip="${desc}">?</span>
           </div>
         `;
       }).join("")}
