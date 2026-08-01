@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
         fastest_win: newFastestWin,
         longest_game: newLongestGame,
         most_captures: newMostCaptures,
-        total_moves_all_games: stats.total_moves_all_games + playerMoves.length,
+        total_moves_all_games: stats.total_moves_all_games + totalMoves,
         spy_combats: stats.spy_combats + spyCombats,
         spy_kills: stats.spy_kills + spyKills,
         bombs_detonated: stats.bombs_detonated + bombsDetonated,

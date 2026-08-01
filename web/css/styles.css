@@ -1028,10 +1028,19 @@ button:active:not(:disabled) {
   white-space: normal;
   width: max-content;
   max-width: 220px;
-  z-index: 100;
+  z-index: 99999;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.5);
   border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.stat-item, .achievement-item {
+  position: relative;
+  z-index: auto;
+}
+
+.stat-item:hover, .achievement-item:hover {
+  z-index: 10;
 }
 
 .achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; }
