@@ -31,6 +31,7 @@ async function loadProfile(username) {
   renderStats(stats);
   renderRadar(stats);
   renderHeatmap(stats);
+  renderPieceFate(stats);
   renderAchievements(achievements, stats);
   loadHistory(username);
   await renderHeadToHead(player.id, player.username);
@@ -244,6 +245,53 @@ function renderHeatmap(stats) {
   const container = document.createElement("div");
   container.className = "heatmap-container";
   container.innerHTML = `<h3>Combat Heatmap <span class="stat-help" data-tooltip="Where your attacks land on the board. Green = high win rate, Red = low win rate. Brighter = more attacks.">?</span></h3><div class="heatmap-legend"><span class="legend-loss">Losses</span><span class="legend-win">Wins</span></div>${svg}`;
+  el.appendChild(container);
+}
+
+const RANK_DISPLAY = {
+  "1": "Marshal",
+  "2": "General",
+  "3": "Colonel",
+  "4": "Major",
+  "5": "Captain",
+  "6": "Lieutenant",
+  "7": "Sergeant",
+  "8": "Miner",
+  "9": "Scout",
+  "10": "Spy",
+  BOMB: "Bomb",
+};
+
+function renderPieceFate(stats) {
+  if (!stats?.kills_by_rank || Object.keys(stats.kills_by_rank).length === 0) return;
+  const el = document.getElementById("profile-stats");
+
+  function barChart(data, title, color) {
+    const entries = Object.entries(data)
+      .filter(([k]) => RANK_DISPLAY[k])
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+    if (entries.length === 0) return "";
+    const max = Math.max(...entries.map(([, v]) => v));
+    return `<div class="fate-chart"><h4>${title}</h4>${entries
+      .map(
+        ([rank, count]) =>
+          `<div class="fate-bar-row"><span class="fate-label">${RANK_DISPLAY[rank]}</span><div class="fate-bar" style="width:${(count / max) * 100}%;background:${color}"></div><span class="fate-count">${count}</span></div>`
+      )
+      .join("")}</div>`;
+  }
+
+  const container = document.createElement("div");
+  container.className = "piece-fate-section";
+  container.innerHTML = `
+    <details class="stats-section" open>
+      <summary>Signature Weapons</summary>
+      <div class="fate-grid">
+        ${barChart(stats.kills_by_rank, "You Kill With", "rgba(100,200,100,0.6)")}
+        ${barChart(stats.deaths_by_rank, "You Die To", "rgba(200,100,100,0.6)")}
+      </div>
+    </details>
+  `;
   el.appendChild(container);
 }
 
