@@ -23,7 +23,11 @@ const LOOKOUT_RADIUS = { easy: 1, medium: 2, hard: 3 };
 // the bot's true back row.
 export function mapFormationToAbsolute(cells, slot) {
   const absoluteRows = ABSOLUTE_ROWS_BY_SLOT[slot];
-  return cells.map(([row, col, rank]) => ({ rank, row: absoluteRows[row], col }));
+  return cells.map(([row, col, rank]) => ({
+    rank,
+    row: absoluteRows[row],
+    col: slot === 2 ? (9 - col) : col,
+  }));
 }
 
 export function pickBotFormationPlacements() {

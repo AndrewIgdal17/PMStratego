@@ -502,6 +502,7 @@ async function handleCellClick(row, col, piece) {
     }
     await refreshState();
     await refreshGameRow(gameId);
+    await refreshMoveLog(gameId);
     return;
   }
 
@@ -622,6 +623,25 @@ async function init() {
       await refreshChat(gameId);
     })
     .subscribe();
+
+  setInterval(async () => {
+    if (isSpectator) return;
+    const { data: g } = await supabase.from("games").select("current_turn_slot, status, winner_slot, turn_number, rematch_room_code").eq("id", gameId).single();
+    if (!g) return;
+    if (g.turn_number !== gameRow?.turn_number || g.status !== gameRow?.status) {
+      await refreshGameRow(gameId);
+      await refreshState();
+      await refreshMoveLog(gameId);
+    }
+  }, 5000);
+
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible" && gameId) {
+      await refreshGameRow(gameId);
+      await refreshState();
+      await refreshMoveLog(gameId);
+    }
+  });
 }
 
 document.querySelectorAll('.graveyard-header').forEach((header) => {

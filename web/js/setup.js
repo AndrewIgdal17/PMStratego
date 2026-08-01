@@ -397,8 +397,9 @@ async function subscribeToGameUpdates() {
 document.getElementById("submit-setup-btn").addEventListener("click", async () => {
   const statusEl = document.getElementById("setup-status");
   const payload = Array.from(placements.entries()).map(([key, rank]) => {
-    const [localRow, col] = key.split(",").map(Number);
-    return { rank, row: ABSOLUTE_ROWS[localRow], col };
+    const [localRow, localCol] = key.split(",").map(Number);
+    const absCol = slot === 2 ? (9 - localCol) : localCol;
+    return { rank, row: ABSOLUTE_ROWS[localRow], col: absCol };
   });
 
   try {
