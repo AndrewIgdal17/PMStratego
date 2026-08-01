@@ -184,6 +184,18 @@ Deno.serve(async (req) => {
     );
   }
 
+  if (result.newState.status === "finished") {
+    const fnUrl = `${SUPABASE_URL}/functions/v1/compute-stats`;
+    fetch(fnUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({ game_id: gameId }),
+    }).catch(() => {});
+  }
+
   return new Response(
     JSON.stringify({ ok: true, combatResult: result.combatResult, winnerSlot: result.winnerSlot }),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } },
