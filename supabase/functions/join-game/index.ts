@@ -1,6 +1,7 @@
 // supabase/functions/join-game/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { verifyToken, extractBearerToken } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -60,6 +61,17 @@ Deno.serve(async (req) => {
       status: 500,
       headers: corsHeaders,
     });
+  }
+
+  let playerId: string | null = null;
+  const authToken = extractBearerToken(req);
+  if (authToken) {
+    const claims = await verifyToken(authToken);
+    if (claims) playerId = claims.player_id;
+  }
+
+  if (playerId) {
+    await supabase.from("games").update({ player2_id: playerId }).eq("id", game.id);
   }
 
   return new Response(

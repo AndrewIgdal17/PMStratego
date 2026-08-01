@@ -1,6 +1,7 @@
 // supabase/functions/create-game/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { verifyToken, extractBearerToken } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -32,13 +33,20 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+  let playerId: string | null = null;
+  const authToken = extractBearerToken(req);
+  if (authToken) {
+    const claims = await verifyToken(authToken);
+    if (claims) playerId = claims.player_id;
+  }
+
   let roomCode = generateRoomCode();
   let gameId: string | null = null;
 
   for (let attempt = 0; attempt < 5 && !gameId; attempt++) {
     const { data, error } = await supabase
       .from("games")
-      .insert({ room_code: roomCode, is_bot_game: isBotGame })
+      .insert({ room_code: roomCode, is_bot_game: isBotGame, player1_id: playerId })
       .select("id")
       .single();
 
