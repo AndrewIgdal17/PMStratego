@@ -158,6 +158,28 @@ Deno.serve(async (req) => {
     (m: Move) => m.attacker_rank === R.MARSHAL && m.defender_rank === R.MARSHAL,
   );
 
+  // === MATERIAL CURVE (per-game, computed once) ===
+  const curveP1: number[] = [];
+  const curveP2: number[] = [];
+  let diffP1 = 0;
+  for (const m of moves) {
+    if (m.move_type !== "attack" || !m.outcome) continue;
+    const attackerVal = RANK_VALUE[m.attacker_rank ?? ""] ?? 0;
+    const defenderVal = RANK_VALUE[m.defender_rank ?? ""] ?? 0;
+
+    if (m.player_slot === 1) {
+      if (m.outcome === "ATTACKER_WINS") diffP1 += defenderVal;
+      else if (m.outcome === "DEFENDER_WINS") diffP1 -= attackerVal;
+      else if (m.outcome === "TIE") diffP1 -= attackerVal;
+    } else {
+      if (m.outcome === "ATTACKER_WINS") diffP1 -= defenderVal;
+      else if (m.outcome === "DEFENDER_WINS") diffP1 += attackerVal;
+      else if (m.outcome === "TIE") diffP1 += attackerVal;
+    }
+    curveP1.push(diffP1);
+    curveP2.push(-diffP1);
+  }
+
   for (const slot of [1, 2] as const) {
     const playerId = slot === 1 ? game.player1_id : game.player2_id;
     const oppId = slot === 1 ? game.player2_id : game.player1_id;
@@ -247,6 +269,171 @@ Deno.serve(async (req) => {
       (m.player_slot !== slot && m.outcome === "DEFENDER_WINS")
     ).length;
 
+    // === REVEAL-SET REPLAY ===
+    const revealedEnemyIds = new Set<string>();
+    let revealAttacks = 0;
+    let revealWins = 0;
+    let revealThenKill = 0;
+    let revealTotal = 0;
+    let avengeKills = 0;
+    let avengeOpportunities = 0;
+    let spyFirstCombatMove: number | null = null;
+    let scoutDistance = 0;
+
+    const killedByEnemy = new Map<string, string[]>();
+    const firstRevealedByMe = new Set<string>();
+
+    for (const m of moves) {
+      const isMyAttack = m.player_slot === slot && m.move_type === "attack";
+      const isEnemyAttack = m.player_slot !== slot && m.move_type === "attack";
+
+      if (m.player_slot === slot) {
+        const piece = pieceById.get(m.piece_id);
+        if (piece?.rank === R.SCOUT) {
+          scoutDistance += Math.abs(m.to_row - m.from_row) + Math.abs(m.to_col - m.from_col);
+        }
+      }
+
+      if (spyFirstCombatMove === null && m.move_type === "attack") {
+        if (m.player_slot === slot && m.attacker_rank === R.SPY) {
+          spyFirstCombatMove = m.move_number;
+        } else if (m.player_slot !== slot && m.defender_piece_id) {
+          const defPiece = pieceById.get(m.defender_piece_id);
+          if (defPiece?.player_slot === slot && defPiece?.rank === R.SPY) {
+            spyFirstCombatMove = m.move_number;
+          }
+        }
+      }
+
+      if (!m.defender_piece_id) continue;
+
+      if (isMyAttack) {
+        const wasRevealed = revealedEnemyIds.has(m.defender_piece_id);
+        if (!wasRevealed) {
+          revealAttacks++;
+          if (m.outcome === "ATTACKER_WINS") revealWins++;
+          revealedEnemyIds.add(m.defender_piece_id);
+          firstRevealedByMe.add(m.defender_piece_id);
+          revealTotal++;
+        }
+      } else if (isEnemyAttack) {
+        revealedEnemyIds.add(m.piece_id);
+        if (!firstRevealedByMe.has(m.piece_id)) {
+          firstRevealedByMe.add(m.piece_id);
+          revealTotal++;
+        }
+
+        if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+          const defPiece = pieceById.get(m.defender_piece_id);
+          if (defPiece?.player_slot === slot) {
+            if (!killedByEnemy.has(m.piece_id)) killedByEnemy.set(m.piece_id, []);
+            killedByEnemy.get(m.piece_id)!.push(m.defender_piece_id);
+            avengeOpportunities++;
+          }
+        }
+      }
+
+      if (isMyAttack && m.outcome === "ATTACKER_WINS" && killedByEnemy.has(m.defender_piece_id)) {
+        avengeKills++;
+      }
+      if (isEnemyAttack && m.outcome === "DEFENDER_WINS" && killedByEnemy.has(m.piece_id)) {
+        avengeKills++;
+      }
+    }
+
+    for (const enemyId of firstRevealedByMe) {
+      const ep = pieceById.get(enemyId);
+      if (ep && !ep.alive) revealThenKill++;
+    }
+
+    // === TRADE EFFICIENCY ===
+    let tradeValue = 0;
+    for (const m of moves) {
+      if (m.move_type !== "attack" || !m.outcome) continue;
+      const attackerVal = RANK_VALUE[m.attacker_rank ?? ""] ?? 0;
+      const defenderVal = RANK_VALUE[m.defender_rank ?? ""] ?? 0;
+
+      if (m.player_slot === slot) {
+        if (m.outcome === "ATTACKER_WINS") tradeValue += defenderVal;
+        else if (m.outcome === "DEFENDER_WINS") tradeValue -= attackerVal;
+        else if (m.outcome === "TIE") tradeValue -= attackerVal;
+      } else {
+        if (m.outcome === "DEFENDER_WINS") tradeValue += attackerVal;
+        else if (m.outcome === "ATTACKER_WINS") tradeValue -= defenderVal;
+        else if (m.outcome === "TIE") tradeValue -= defenderVal;
+      }
+    }
+
+    // === COMEBACK DELTA ===
+    let materialDiff = 0;
+    let maxDeficit = 0;
+    for (const m of moves) {
+      if (m.move_type !== "attack" || !m.outcome) continue;
+      const attackerVal = RANK_VALUE[m.attacker_rank ?? ""] ?? 0;
+      const defenderVal = RANK_VALUE[m.defender_rank ?? ""] ?? 0;
+
+      if (m.player_slot === slot) {
+        if (m.outcome === "ATTACKER_WINS") materialDiff += defenderVal;
+        else if (m.outcome === "DEFENDER_WINS") materialDiff -= attackerVal;
+        else if (m.outcome === "TIE") {
+          materialDiff -= attackerVal;
+          materialDiff += defenderVal;
+        }
+      } else {
+        if (m.outcome === "ATTACKER_WINS") materialDiff -= defenderVal;
+        else if (m.outcome === "DEFENDER_WINS") materialDiff += attackerVal;
+        else if (m.outcome === "TIE") {
+          materialDiff += attackerVal;
+          materialDiff -= defenderVal;
+        }
+      }
+      if (materialDiff < maxDeficit) maxDeficit = materialDiff;
+    }
+    const comebackDelta = won && maxDeficit < 0 ? Math.abs(maxDeficit) : 0;
+
+    // === COMBAT HEATMAP ===
+    const heatmap: Record<string, { attacks: number; wins: number }> = {
+      ...(stats.attack_heatmap ?? {}),
+    };
+    for (const m of moves) {
+      if (m.player_slot === slot && m.move_type === "attack") {
+        const key = `${m.to_row},${m.to_col}`;
+        if (!heatmap[key]) heatmap[key] = { attacks: 0, wins: 0 };
+        heatmap[key].attacks++;
+        if (m.outcome === "ATTACKER_WINS") heatmap[key].wins++;
+      }
+    }
+
+    // === PIECE FATE / SIGNATURE WEAPONS ===
+    const killsByRank: Record<string, number> = { ...(stats.kills_by_rank ?? {}) };
+    const deathsByRank: Record<string, number> = { ...(stats.deaths_by_rank ?? {}) };
+
+    for (const m of moves) {
+      if (m.move_type !== "attack" || !m.outcome) continue;
+
+      if (m.player_slot === slot) {
+        if (m.outcome === "ATTACKER_WINS" && m.attacker_rank) {
+          killsByRank[m.attacker_rank] = (killsByRank[m.attacker_rank] ?? 0) + 1;
+        }
+        if (m.outcome === "DEFENDER_WINS" && m.attacker_rank) {
+          deathsByRank[m.defender_rank ?? "?"] = (deathsByRank[m.defender_rank ?? "?"] ?? 0) + 1;
+        }
+      } else {
+        if (m.outcome === "DEFENDER_WINS" && m.defender_piece_id) {
+          const dp = pieceById.get(m.defender_piece_id);
+          if (dp?.player_slot === slot && dp.rank) {
+            killsByRank[dp.rank] = (killsByRank[dp.rank] ?? 0) + 1;
+          }
+        }
+        if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+          const dp = pieceById.get(m.defender_piece_id);
+          if (dp?.player_slot === slot) {
+            deathsByRank[m.attacker_rank ?? "?"] = (deathsByRank[m.attacker_rank ?? "?"] ?? 0) + 1;
+          }
+        }
+      }
+    }
+
     let winByFlag = 0;
     let winByResign = 0;
     let winByNomoves = 0;
@@ -333,6 +520,22 @@ Deno.serve(async (req) => {
         marathon_wins: stats.marathon_wins + (isMarathon && won ? 1 : 0),
         marshal_showdowns: stats.marshal_showdowns + marshalShowdowns,
         marshal_showdown_wins: stats.marshal_showdown_wins + marshalShowdownWins,
+        reveal_attacks: stats.reveal_attacks + revealAttacks,
+        reveal_wins: stats.reveal_wins + revealWins,
+        scout_distance: stats.scout_distance + scoutDistance,
+        avenge_kills: stats.avenge_kills + avengeKills,
+        avenge_opportunities: stats.avenge_opportunities + avengeOpportunities,
+        spy_timing_sum: stats.spy_timing_sum + (spyFirstCombatMove ?? 0),
+        spy_timing_games: stats.spy_timing_games + (spyFirstCombatMove !== null ? 1 : 0),
+        max_comeback_deficit: Math.max(stats.max_comeback_deficit ?? 0, comebackDelta),
+        reveal_then_kill: stats.reveal_then_kill + revealThenKill,
+        reveal_total: stats.reveal_total + revealTotal,
+        trade_efficiency_sum: stats.trade_efficiency_sum + tradeValue,
+        trade_efficiency_count: stats.trade_efficiency_count + combatsTotal,
+        career_kingmakers: stats.career_kingmakers + (spyKills > 0 ? 1 : 0),
+        attack_heatmap: heatmap,
+        kills_by_rank: killsByRank,
+        deaths_by_rank: deathsByRank,
         updated_at: new Date().toISOString(),
       })
       .eq("player_id", playerId);
@@ -380,6 +583,15 @@ Deno.serve(async (req) => {
       }
     }
   }
+
+  await supabase.from("game_summaries").upsert(
+    {
+      game_id,
+      material_curve_p1: curveP1,
+      material_curve_p2: curveP2,
+    },
+    { onConflict: "game_id" },
+  );
 
   await supabase.from("games").update({ stats_computed: true }).eq("id", game_id);
 
