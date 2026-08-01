@@ -73,6 +73,18 @@ function renderStats(stats) {
       ["Aggression Index", stats.total_moves > 0 ? `${((stats.forward_moves / stats.total_moves) * 100).toFixed(0)}%` : "—", "What % of your moves advance toward the enemy's side of the board?"],
       ["Deep Strike Rate", stats.total_moves > 0 ? `${((stats.moves_in_enemy_half / stats.total_moves) * 100).toFixed(0)}%` : "—", "What % of your moves end in the enemy's half of the board?"],
     ]},
+    { title: "Fog & Intelligence", items: [
+      ["Reveal Efficiency", stats.reveal_attacks > 0 ? `${((stats.reveal_wins / stats.reveal_attacks) * 100).toFixed(0)}%` : "—", "Win rate when attacking pieces you haven't seen before — measures blind-combat judgment"],
+      ["Unknown Pressure", stats.attacks_total > 0 ? `${((stats.reveal_attacks / stats.attacks_total) * 100).toFixed(0)}%` : "—", "What fraction of your attacks target unrevealed (unknown) pieces — bold vs cautious"],
+      ["First-Reveal Conversion", stats.reveal_total > 0 ? `${((stats.reveal_then_kill / stats.reveal_total) * 100).toFixed(0)}%` : "—", "After revealing an enemy piece, how often do you eventually eliminate it?"],
+      ["Scout Tempo", stats.scout_moves > 0 ? `${(stats.scout_distance / stats.scout_moves).toFixed(1)} sq/move` : "—", "Average squares traveled per Scout move — long-range recon vs cautious one-step probes"],
+      ["Spy Timing", stats.spy_timing_games > 0 ? `Move ${Math.round(stats.spy_timing_sum / stats.spy_timing_games)}` : "—", "Average move number when your Spy first enters combat — early gamble vs late dagger"],
+    ]},
+    { title: "Combat Economy", items: [
+      ["Trade Efficiency", stats.trade_efficiency_count > 0 ? `${(stats.trade_efficiency_sum / stats.trade_efficiency_count).toFixed(1)}` : "—", "Net rank-value gained per combat (positive = trading up on average)"],
+      ["Avenge Rate", stats.avenge_opportunities > 0 ? `${((stats.avenge_kills / stats.avenge_opportunities) * 100).toFixed(0)}%` : "—", "How often you track down and kill a piece that previously killed one of yours"],
+      ["Comeback Record", stats.max_comeback_deficit > 0 ? `${stats.max_comeback_deficit} pts` : "—", "Largest rank-value deficit you overcame in a winning game"],
+    ]},
     { title: "Endgame & Clutch", items: [
       ["Marathon Win Rate", stats.marathon_games > 0 ? `${((stats.marathon_wins / stats.marathon_games) * 100).toFixed(0)}%` : "—", "Win rate in long games (60+ total moves)"],
       ["Win by Flag %", stats.wins > 0 ? `${((stats.wins_by_flag / stats.wins) * 100).toFixed(0)}%` : "—", "% of your wins by capturing the enemy Flag (vs. resignation or no-moves-left)"],
@@ -113,6 +125,15 @@ const ACHIEVEMENT_LABELS = {
   fog_walker: { name: "Fog Walker", desc: "Make 10+ attacks on enemy pieces and win the game" },
   counterpunch: { name: "Counterpunch", desc: "Win after being behind by 15+ rank-value points during the game" },
   rival_hunter: { name: "Rival Hunter", desc: "Beat the same opponent 5 times across any number of games" },
+  ghost_protocol: { name: "Ghost Protocol", desc: "Win without your Marshal or General ever entering combat" },
+  phoenix: { name: "Phoenix", desc: "Win after losing your Marshal during the game" },
+  vendetta: { name: "Vendetta", desc: "Avenge 3+ of your pieces by killing the exact enemy piece that killed them" },
+  counterintel: { name: "Counterintel", desc: "Eliminate the enemy Spy before your Marshal is revealed in combat" },
+  fortress_breaker: { name: "Fortress Breaker", desc: "Defuse 3+ enemy Bombs AND capture the Flag in the same game" },
+  silent_general: { name: "Silent General", desc: "Win without initiating any attack in the first 15 moves" },
+  nemesis: { name: "Nemesis", desc: "Beat an opponent rated 200+ points higher than you" },
+  serial_killer: { name: "Serial Killer", desc: "Use your Spy to kill the enemy Marshal in 3+ career games" },
+  perfect_deminer: { name: "Perfect Deminer", desc: "Defuse all 6 enemy Bombs without losing a single Miner to a Bomb" },
 };
 
 function renderAchievements(achievements) {
