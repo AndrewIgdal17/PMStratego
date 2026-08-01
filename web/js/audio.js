@@ -17,8 +17,8 @@ let sfxGain = null;
 let musicGain = null;
 let masterGain = null;
 let buffers = new Map();
-let musicSource = null;
-let musicBuffer = null;
+let musicElement = null;
+let musicMediaSource = null;
 let musicPlaying = false;
 let initialized = false;
 
@@ -50,6 +50,15 @@ function applyGains() {
   musicGain.gain.value = state.musicMuted ? 0 : state.musicVolume;
 }
 
+function setupMusicElement(basePath) {
+  if (musicElement) return;
+  musicElement = new Audio(basePath + MUSIC_FILE);
+  musicElement.loop = true;
+  musicElement.preload = 'auto';
+  musicMediaSource = ctx.createMediaElementSource(musicElement);
+  musicMediaSource.connect(musicGain);
+}
+
 export async function initAudio() {
   if (initialized) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -71,6 +80,8 @@ export async function initAudio() {
 
   const basePath = new URL(AUDIO_BASE, import.meta.url).href;
 
+  setupMusicElement(basePath);
+
   const loadPromises = Object.entries(SFX_FILES).map(async ([name, file]) => {
     try {
       const res = await fetch(basePath + file);
@@ -81,14 +92,6 @@ export async function initAudio() {
       console.warn(`Failed to load sound: ${name}`, e);
     }
   });
-
-  try {
-    const res = await fetch(basePath + MUSIC_FILE);
-    const arrayBuf = await res.arrayBuffer();
-    musicBuffer = await ctx.decodeAudioData(arrayBuf);
-  } catch (e) {
-    console.warn('Failed to load music', e);
-  }
 
   await Promise.all(loadPromises);
   initialized = true;
@@ -146,19 +149,14 @@ function playSynthChime() {
 }
 
 export function playMusic() {
-  if (!initialized || !musicBuffer || musicPlaying) return;
-  musicSource = ctx.createBufferSource();
-  musicSource.buffer = musicBuffer;
-  musicSource.loop = true;
-  musicSource.connect(musicGain);
-  musicSource.start(0);
+  if (!initialized || !ctx || !musicElement || musicPlaying) return;
+  musicElement.play().catch(() => {});
   musicPlaying = true;
 }
 
 export function stopMusic() {
-  if (!musicPlaying || !musicSource) return;
-  musicSource.stop();
-  musicSource = null;
+  if (!musicPlaying || !musicElement) return;
+  musicElement.pause();
   musicPlaying = false;
 }
 
