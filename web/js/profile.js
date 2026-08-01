@@ -21,25 +21,29 @@ async function loadProfile(username) {
     return;
   }
 
-  document.title = `Stratego — ${data.username}`;
-  renderHeader(data);
-  renderStats(data.stats);
-  renderAchievements(data.achievements);
+  const player = data.player;
+  const stats = data.stats;
+  const achievements = data.achievements;
+
+  document.title = `Stratego — ${player.username}`;
+  renderHeader(player, stats);
+  renderStats(stats);
+  renderAchievements(achievements);
   loadHistory(username);
 }
 
-function renderHeader(data) {
+function renderHeader(player, stats) {
   const el = document.getElementById("profile-header");
-  const totalGames = data.stats ? (data.stats.wins + data.stats.losses + data.stats.draws) : 0;
-  const winRate = totalGames > 0 ? ((data.stats.wins / totalGames) * 100).toFixed(1) : "0.0";
+  const totalGames = stats ? (stats.wins + stats.losses + stats.draws) : 0;
+  const winRate = totalGames > 0 ? ((stats.wins / totalGames) * 100).toFixed(1) : "0.0";
   el.innerHTML = `
-    <h2>${data.username}</h2>
+    <h2>${player.username}</h2>
     <div class="profile-meta">
-      <span class="rating-badge ${data.rating_provisional ? "provisional" : ""}">${data.rating} ${data.rating_provisional ? "(Provisional)" : ""}</span>
-      ${data.stats?.archetype ? `<span class="archetype-badge">${data.stats.archetype}</span>` : ""}
-      <span>${data.games_played} games</span>
+      <span class="rating-badge ${player.rating_provisional ? "provisional" : ""}">${player.rating} ${player.rating_provisional ? "(Provisional)" : ""}</span>
+      ${stats?.archetype ? `<span class="archetype-badge">${stats.archetype}</span>` : ""}
+      <span>${player.games_played} games</span>
       <span>${winRate}% win rate</span>
-      <span>Member since ${new Date(data.created_at).toLocaleDateString()}</span>
+      <span>Member since ${new Date(player.created_at).toLocaleDateString()}</span>
     </div>
   `;
 }
@@ -105,7 +109,7 @@ const ACHIEVEMENT_LABELS = {
 
 function renderAchievements(achievements) {
   const el = document.getElementById("profile-achievements");
-  const unlocked = new Set((achievements || []).map((a) => a.key));
+  const unlocked = new Set((achievements || []).map((a) => a.achievement_key));
   el.innerHTML = `
     <h3>Achievements</h3>
     <div class="achievements-grid">
