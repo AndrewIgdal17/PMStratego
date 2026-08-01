@@ -469,6 +469,9 @@ Deno.serve(async (req) => {
     const newGamesPlayed = player.games_played + 1;
     const newProvisional = newGamesPlayed < 20;
 
+    const rivalWins: Record<string, number> = stats.career_rival_wins ?? {};
+    rivalWins[oppId] = (rivalWins[oppId] ?? 0) + (won ? 1 : 0);
+
     const { error: playerUpdateError } = await supabase
       .from("players")
       .update({
@@ -533,6 +536,7 @@ Deno.serve(async (req) => {
         trade_efficiency_sum: stats.trade_efficiency_sum + tradeValue,
         trade_efficiency_count: stats.trade_efficiency_count + combatsTotal,
         career_kingmakers: stats.career_kingmakers + (spyKills > 0 ? 1 : 0),
+        career_rival_wins: rivalWins,
         attack_heatmap: heatmap,
         kills_by_rank: killsByRank,
         deaths_by_rank: deathsByRank,
@@ -567,6 +571,81 @@ Deno.serve(async (req) => {
     if (bombsDetonated >= 4) newAchievements.push("minefield_architect");
     if (won && highPiecesLost === 0) newAchievements.push("iron_wall");
     if (won && myAttacks.length >= 10) newAchievements.push("fog_walker");
+
+    // --- NEW ACHIEVEMENTS ---
+
+    // Ghost Protocol: Win without Marshal or General entering combat
+    const marshalOrGenInCombat = moves.some((m: Move) => {
+      if (m.player_slot === slot) {
+        return m.attacker_rank === R.MARSHAL || m.attacker_rank === R.GENERAL;
+      }
+      if (m.player_slot !== slot && m.defender_piece_id) {
+        const dp = pieceById.get(m.defender_piece_id);
+        return dp?.player_slot === slot && (dp.rank === R.MARSHAL || dp.rank === R.GENERAL);
+      }
+      return false;
+    });
+    if (won && !marshalOrGenInCombat) newAchievements.push("ghost_protocol");
+
+    // Phoenix: Win after losing your Marshal
+    const myMarshal = playerPieces.find((p: Piece) => p.rank === R.MARSHAL);
+    if (won && myMarshal && !myMarshal.alive) newAchievements.push("phoenix");
+
+    // Vendetta: In one game, an enemy piece kills yours, then you later kill that same piece (3+ times)
+    if (avengeKills >= 3) newAchievements.push("vendetta");
+
+    // Counterintel: Kill enemy Spy before your Marshal enters any combat
+    const enemySpy = enemyPieces.find((p: Piece) => p.rank === R.SPY);
+    const enemySpyDead = enemySpy && !enemySpy.alive;
+    if (enemySpyDead && won) {
+      const spyDeathMove = moves.find((m: Move) =>
+        (m.defender_piece_id === enemySpy.id && m.outcome === "ATTACKER_WINS") ||
+        (m.piece_id === enemySpy.id && m.outcome === "DEFENDER_WINS")
+      );
+      const marshalFirstCombat = moves.find((m: Move) => {
+        if (m.player_slot === slot && m.attacker_rank === R.MARSHAL) return true;
+        if (m.player_slot !== slot && m.defender_piece_id) {
+          const dp = pieceById.get(m.defender_piece_id);
+          return dp?.player_slot === slot && dp.rank === R.MARSHAL;
+        }
+        return false;
+      });
+      if (spyDeathMove && (!marshalFirstCombat || spyDeathMove.move_number < marshalFirstCombat.move_number)) {
+        newAchievements.push("counterintel");
+      }
+    }
+
+    // Fortress Breaker: Defuse 3+ bombs AND capture the Flag in same game
+    if (won && bombDefuses >= 3 && lastMove?.defender_rank === R.FLAG) {
+      newAchievements.push("fortress_breaker");
+    }
+
+    // Silent General: Win without initiating any attack in first 15 moves
+    const earlyAttacks = moves.filter((m: Move) =>
+      m.player_slot === slot && m.move_type === "attack" && m.move_number <= 15
+    ).length;
+    if (won && earlyAttacks === 0) newAchievements.push("silent_general");
+
+    // Nemesis: Beat opponent rated 200+ higher
+    if (won && opponent.rating - player.rating >= 200) newAchievements.push("nemesis");
+
+    // Serial Killer (career): 3+ games where spy kills Marshal
+    if (stats.career_kingmakers + (spyKills > 0 ? 1 : 0) >= 3) {
+      newAchievements.push("serial_killer");
+    }
+
+    // Perfect Deminer: Defuse all enemy bombs (6) without losing any Miner to a bomb
+    const minersLostToBombs = moves.filter((m: Move) =>
+      m.player_slot === slot && m.attacker_rank === R.MINER &&
+      m.defender_rank === R.BOMB && m.outcome === "DEFENDER_WINS"
+    ).length;
+    if (bombDefuses >= 6 && minersLostToBombs === 0) newAchievements.push("perfect_deminer");
+
+    // Counterpunch: Win after being behind by ≥15 rank-value points
+    if (won && comebackDelta >= 15) newAchievements.push("counterpunch");
+
+    // Rival Hunter: Beat same opponent 5+ times (career)
+    if (rivalWins[oppId] >= 5) newAchievements.push("rival_hunter");
 
     if (newAchievements.length > 0) {
       const { error: achievementsError } = await supabase.from("achievements").upsert(
