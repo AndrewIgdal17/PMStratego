@@ -1,5 +1,5 @@
 import { supabase, callFunction } from "./supabaseClient.js";
-import { renderNavAuth } from "./auth.js";
+import { renderNavAuth, getUsername, isLoggedIn } from "./auth.js";
 
 renderNavAuth(document.getElementById("nav-auth"));
 import { BOARD_SIZE, isLake } from "./rules/board.js";
@@ -110,11 +110,25 @@ function renderTurnIndicator() {
   if (!gameRow) return;
   if (gameRow.status === "finished") {
     if (isSpectator) {
-      el.textContent = `Player ${gameRow.winner_slot} wins!`;
+      el.textContent = `Game Over — Player ${gameRow.winner_slot} wins!`;
     } else {
-      el.textContent = gameRow.winner_slot === mySlot ? "You won!" : "You lost.";
+      el.textContent = gameRow.winner_slot === mySlot ? "Victory! You won!" : "Defeat. You lost.";
+      el.className = `turn-indicator ${gameRow.winner_slot === mySlot ? "result-win" : "result-loss"}`;
     }
-    if (!isSpectator) document.getElementById("rematch-btn").hidden = false;
+    document.getElementById("resign-btn").hidden = true;
+    if (!isSpectator) {
+      document.getElementById("rematch-btn").hidden = false;
+      document.getElementById("home-btn").hidden = false;
+      document.getElementById("profile-btn").hidden = false;
+      const profileBtn = document.getElementById("profile-btn");
+      if (isLoggedIn()) {
+        profileBtn.href = `profile.html?user=${encodeURIComponent(getUsername())}`;
+      } else {
+        profileBtn.hidden = true;
+      }
+    } else {
+      document.getElementById("home-btn").hidden = false;
+    }
     return;
   }
   if (isSpectator) {
