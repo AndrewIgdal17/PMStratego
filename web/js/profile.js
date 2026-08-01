@@ -29,7 +29,7 @@ async function loadProfile(username) {
   renderHeader(player, stats);
   renderStats(stats);
   renderRadar(stats);
-  renderAchievements(achievements);
+  renderAchievements(achievements, stats);
   loadHistory(username);
 }
 
@@ -189,18 +189,37 @@ const ACHIEVEMENT_LABELS = {
   perfect_deminer: { name: "Perfect Deminer", desc: "Defuse all 6 enemy Bombs without losing a single Miner to a Bomb" },
 };
 
-function renderAchievements(achievements) {
+function renderAchievements(achievements, stats) {
   const el = document.getElementById("profile-achievements");
   const unlocked = new Set((achievements || []).map((a) => a.achievement_key));
+
+  const progressHints = {
+    rival_hunter: () => {
+      const rivals = stats?.career_rival_wins ?? {};
+      const best = Object.entries(rivals).sort(([, a], [, b]) => Number(b) - Number(a))[0];
+      return best ? `${best[1]}/5 vs top rival` : null;
+    },
+    serial_killer: () =>
+      stats?.career_kingmakers > 0 ? `${stats.career_kingmakers}/3 spy kills` : null,
+    counterpunch: () =>
+      stats?.max_comeback_deficit > 0 ? `Best: ${stats.max_comeback_deficit}/15 pts` : null,
+  };
+
   el.innerHTML = `
     <h3>Achievements</h3>
     <div class="achievements-grid">
       ${Object.entries(ACHIEVEMENT_LABELS).map(([key, { name, desc }]) => {
         const isUnlocked = unlocked.has(key);
+        let progressBar = "";
+        if (!isUnlocked && progressHints[key]) {
+          const hint = progressHints[key]();
+          if (hint) progressBar = `<span class="achievement-progress">${hint}</span>`;
+        }
         return `
           <div class="achievement-item ${isUnlocked ? "unlocked" : "locked"}">
             <span class="achievement-name">${name}</span>
             <span class="stat-help" data-tooltip="${desc}">?</span>
+            ${progressBar}
           </div>
         `;
       }).join("")}
