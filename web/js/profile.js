@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { renderNavAuth } from "./auth.js";
+import { materialSparkline } from "./gameSummary.js";
 
 renderNavAuth(document.getElementById("nav-auth"));
 
@@ -298,7 +299,7 @@ async function loadHistory(username) {
     <h3>Game History</h3>
     ${sparkline}
     <table class="history-table">
-      <thead><tr><th>Opponent</th><th>Result</th><th>Moves</th><th>Date</th></tr></thead>
+      <thead><tr><th>Opponent</th><th>Result</th><th>Moves</th><th>Curve</th><th>Date</th></tr></thead>
       <tbody>
         ${data.map((g) => {
           const result = g.winner_slot === g.player_slot ? "Win" : (g.winner_slot ? "Loss" : "Draw");
@@ -307,10 +308,28 @@ async function loadHistory(username) {
             <td><a href="profile.html?user=${encodeURIComponent(g.opponent_username || "Anonymous")}">${g.opponent_username || "Anonymous"}</a></td>
             <td class="${cls}">${result}</td>
             <td>${g.turn_number || "—"}</td>
+            <td class="curve-cell" data-game-id="${g.game_id}" data-player-slot="${g.player_slot}">—</td>
             <td>${new Date(g.created_at).toLocaleDateString()}</td>
           </tr>`;
         }).join("")}
       </tbody>
     </table>
   `;
+
+  await loadMaterialCurves(el);
+}
+
+async function loadMaterialCurves(container) {
+  const cells = container.querySelectorAll(".curve-cell");
+  await Promise.all(
+    [...cells].map(async (cell) => {
+      const gameId = cell.dataset.gameId;
+      const playerSlot = Number(cell.dataset.playerSlot);
+      const { data: summary } = await supabase.rpc("get_game_summary", { p_game_id: gameId });
+      const curve = summary?.material_curve_p1;
+      if (curve && curve.length > 0) {
+        cell.innerHTML = materialSparkline(curve, playerSlot);
+      }
+    })
+  );
 }

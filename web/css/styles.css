@@ -1107,4 +1107,6 @@ button:active:not(:disabled) {
 .history-table .draw { color: #cc6; }
 .history-table a { color: #5b9bd5; text-decoration: none; }
 .history-table a:hover { text-decoration: underline; }
+.curve-cell { width: 130px; padding: 0.2rem 0.4rem !important; vertical-align: middle; }
+.material-spark { width: 120px; height: 30px; display: block; }
 .leaderboard-panel { margin-top: 1rem; }
