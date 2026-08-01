@@ -74,7 +74,7 @@ function renderHeader(player, stats) {
     <h2>${player.username}</h2>
     <div class="profile-meta">
       <span class="rating-badge ${player.rating_provisional ? "provisional" : ""}">${player.rating} ${player.rating_provisional ? "(Provisional)" : ""}</span>
-      ${stats?.archetype ? `<span class="archetype-badge">${stats.archetype}</span>` : ""}
+      ${stats?.archetype ? `<span class="archetype-badge" data-tooltip="Playstyle archetype — recalculated every 5 games based on your stat pattern">${stats.archetype.replace("_", " ")}</span>` : ""}
       <span>${player.games_played} games</span>
       <span>${winRate}% win rate</span>
       <span>Member since ${new Date(player.created_at).toLocaleDateString()}</span>

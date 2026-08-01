@@ -548,6 +548,87 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "STATS_UPDATE_FAILED", detail: statsUpdateError.message }, 500);
     }
 
+    // Archetype refresh every 5 games
+    if (newGamesPlayed % 5 === 0 && newGamesPlayed >= 5) {
+      const updatedStats = {
+        ...stats,
+        reveal_attacks: stats.reveal_attacks + revealAttacks,
+        reveal_wins: stats.reveal_wins + revealWins,
+        forward_moves: stats.forward_moves + forwardMoves,
+        total_moves: stats.total_moves + playerMoves.length,
+        combats_initiated: stats.combats_initiated + combatsAsAttacker,
+        combats_total: stats.combats_total + combatsTotal,
+        bombs_detonated: stats.bombs_detonated + bombsDetonated,
+        total_bombs: stats.total_bombs + myBombs.length,
+        scout_distance: stats.scout_distance + scoutDistance,
+        scout_moves: stats.scout_moves + scoutMoves,
+        marathon_wins: stats.marathon_wins + (isMarathon && won ? 1 : 0),
+        marathon_games: stats.marathon_games + (isMarathon ? 1 : 0),
+        avenge_kills: stats.avenge_kills + avengeKills,
+        avenge_opportunities: stats.avenge_opportunities + avengeOpportunities,
+        trade_efficiency_sum: stats.trade_efficiency_sum + tradeValue,
+        trade_efficiency_count: stats.trade_efficiency_count + combatsTotal,
+        spy_kills: stats.spy_kills + spyKills,
+        first_bloods: stats.first_bloods + (gotFirstBlood ? 1 : 0),
+        miners_survived: stats.miners_survived + minersSurvived,
+        miners_started: stats.miners_started + myMiners.length,
+        attacks_total: stats.attacks_total + myAttacks.length,
+      };
+
+      const aggression = updatedStats.total_moves > 0
+        ? updatedStats.forward_moves / updatedStats.total_moves
+        : 0;
+      const initiative = updatedStats.combats_total > 0
+        ? updatedStats.combats_initiated / updatedStats.combats_total
+        : 0;
+      const revealEff = updatedStats.reveal_attacks > 0
+        ? updatedStats.reveal_wins / updatedStats.reveal_attacks
+        : 0;
+      const bombEff = updatedStats.total_bombs > 0
+        ? updatedStats.bombs_detonated / updatedStats.total_bombs
+        : 0;
+      const marathonWR = updatedStats.marathon_games > 0
+        ? updatedStats.marathon_wins / updatedStats.marathon_games
+        : 0;
+      const scoutTempo = updatedStats.scout_moves > 0
+        ? updatedStats.scout_distance / updatedStats.scout_moves
+        : 0;
+      const avengeRate = updatedStats.avenge_opportunities > 0
+        ? updatedStats.avenge_kills / updatedStats.avenge_opportunities
+        : 0;
+      const minerSurv = updatedStats.miners_started > 0
+        ? updatedStats.miners_survived / updatedStats.miners_started
+        : 0;
+      const totalGames = newWins + newLosses + newDraws;
+      const firstBloodRate = totalGames > 0 ? updatedStats.first_bloods / totalGames : 0;
+      const unknownPressure = updatedStats.attacks_total > 0
+        ? updatedStats.reveal_attacks / updatedStats.attacks_total
+        : 0;
+
+      const scores: Record<string, number> = {
+        brawler: aggression * 3 + initiative * 2 + firstBloodRate,
+        trapper: bombEff * 3 + (1 - aggression) * 2 + avengeRate,
+        scout_main: (scoutTempo / 5) * 3 + revealEff * 2 + unknownPressure,
+        grinder: marathonWR * 3 + (1 - aggression) * 2 + minerSurv,
+        assassin: (updatedStats.spy_kills > 0 ? 1 : 0) * 2 + firstBloodRate * 2 + unknownPressure * 2,
+        fortress: (1 - aggression) * 2 + minerSurv * 2 + bombEff * 2,
+      };
+
+      const archetype = Object.entries(scores).sort(([, a], [, b]) => b - a)[0][0];
+
+      const { error: archetypeUpdateError } = await supabase
+        .from("player_stats")
+        .update({
+          archetype,
+          archetype_updated_at: new Date().toISOString(),
+        })
+        .eq("player_id", playerId);
+
+      if (archetypeUpdateError) {
+        return jsonResponse({ error: "ARCHETYPE_UPDATE_FAILED", detail: archetypeUpdateError.message }, 500);
+      }
+    }
+
     const aliveCount = playerPieces.filter((p: Piece) => p.alive).length;
     const bombDefuses = playerMoves.filter(
       (m: Move) =>
