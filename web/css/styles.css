@@ -963,6 +963,27 @@ button:active:not(:disabled) {
 .stat-label { font-size: 0.75rem; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.03em; }
 .stat-value { font-size: 1.1rem; font-weight: bold; }
 
+/* Stat and achievement tooltip help icon */
+.stat-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 0.6rem;
+  cursor: help;
+  vertical-align: middle;
+  margin-left: 3px;
+  opacity: 0.6;
+}
+
+.stat-help:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.3);
+}
+
 .achievements-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; }
 .achievement-item { padding: 0.6rem; border-radius: 6px; text-align: center; font-size: 0.8rem; }
 .achievement-item.unlocked { background: rgba(100, 200, 100, 0.15); border: 1px solid rgba(100, 200, 100, 0.4); }
