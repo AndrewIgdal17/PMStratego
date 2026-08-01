@@ -55,6 +55,16 @@ Deno.serve(async (req) => {
     });
   }
 
+  const fnUrl = `${SUPABASE_URL}/functions/v1/compute-stats`;
+  fetch(fnUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ game_id: playerRow.game_id }),
+  }).catch(() => {});
+
   return new Response(JSON.stringify({ ok: true, winnerSlot }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });

@@ -116,6 +116,10 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "GAME_NOT_FINISHED" }, 400);
   }
 
+  if (game.stats_computed) {
+    return jsonResponse({ ok: true, skipped: "already_computed" });
+  }
+
   if (!game.player1_id || !game.player2_id) {
     return jsonResponse({ ok: true, skipped: "anonymous_players" });
   }
@@ -376,6 +380,8 @@ Deno.serve(async (req) => {
       }
     }
   }
+
+  await supabase.from("games").update({ stats_computed: true }).eq("id", game_id);
 
   return jsonResponse({ ok: true });
 });
