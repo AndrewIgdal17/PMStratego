@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { renderNavAuth } from "./auth.js";
+import { renderNavAuth, getUsername, isLoggedIn } from "./auth.js";
 import { materialSparkline } from "./gameSummary.js";
 
 renderNavAuth(document.getElementById("nav-auth"));
@@ -33,6 +33,37 @@ async function loadProfile(username) {
   renderHeatmap(stats);
   renderAchievements(achievements, stats);
   loadHistory(username);
+  await renderHeadToHead(player.id, player.username);
+}
+
+async function renderHeadToHead(profilePlayerId, username) {
+  if (!isLoggedIn()) return;
+  const myUsername = getUsername();
+  if (!myUsername || myUsername.toLowerCase() === username.toLowerCase()) return;
+
+  const { data: myProfile } = await supabase.rpc("get_player_profile", { p_username: myUsername });
+  if (!myProfile?.player?.id) return;
+
+  const { data: h2h } = await supabase.rpc("get_head_to_head", {
+    p_player1_id: myProfile.player.id,
+    p_player2_id: profilePlayerId,
+  });
+
+  if (!h2h || h2h.total_games === 0) return;
+
+  const el = document.getElementById("profile-header");
+  const card = document.createElement("div");
+  card.className = "h2h-card";
+  card.innerHTML = `
+    <div class="h2h-title">Head-to-Head vs ${username}</div>
+    <div class="h2h-record">
+      <span class="h2h-wins">${h2h.p1_wins}W</span>
+      <span class="h2h-draws">${h2h.draws}D</span>
+      <span class="h2h-losses">${h2h.p2_wins}L</span>
+    </div>
+    <div class="h2h-meta">${h2h.total_games} games, avg ${h2h.avg_moves} moves</div>
+  `;
+  el.after(card);
 }
 
 function renderHeader(player, stats) {

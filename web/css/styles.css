@@ -984,6 +984,14 @@ button:active:not(:disabled) {
 .rating-badge.provisional { opacity: 0.7; font-style: italic; }
 .archetype-badge { background: rgba(255,255,255,0.1); padding: 0.1rem 0.5rem; border-radius: 3px; text-transform: capitalize; }
 
+.h2h-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.75rem 1rem; margin: 0.75rem 0; display: inline-block; }
+.h2h-title { font-size: 0.8rem; opacity: 0.7; margin-bottom: 0.3rem; }
+.h2h-record { font-size: 1.2rem; font-weight: bold; display: flex; gap: 0.75rem; }
+.h2h-wins { color: #6c6; }
+.h2h-draws { color: #cc6; }
+.h2h-losses { color: #c66; }
+.h2h-meta { font-size: 0.75rem; opacity: 0.6; margin-top: 0.3rem; }
+
 /* Radar chart */
 .radar-container { text-align: center; margin-bottom: 1.5rem; }
 .radar-container h3 { margin-bottom: 0.5rem; }
