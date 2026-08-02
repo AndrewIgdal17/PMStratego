@@ -965,6 +965,65 @@ Deno.serve(async (req) => {
 
     mergePhaseStats(phaseStatsBySlot[slot], gamePhaseStats);
 
+    // === BOARD GEOGRAPHY ===
+    let flankLeft = 0;
+    let flankRight = 0;
+    let lakeCorridor = 0;
+    let defenseDepthSum = 0;
+    let defenseDepthCount = 0;
+    for (const m of playerMoves as Move[]) {
+      if (m.to_col <= 4) flankLeft++;
+      else flankRight++;
+      if (m.to_col === 4 || m.to_col === 5) lakeCorridor++;
+      if (m.move_type === "attack") {
+        const homeRow = slot === 1 ? 9 : 0;
+        defenseDepthSum += Math.abs(m.to_row - homeRow);
+        defenseDepthCount++;
+      }
+    }
+
+    let invasionLaneKey: "left" | "center" | "right" | null = null;
+    for (const m of playerMoves as Move[]) {
+      if (slot === 1 && m.to_row <= 4) {
+        invasionLaneKey = invasionLane(m.to_col);
+        break;
+      }
+      if (slot === 2 && m.to_row >= 5) {
+        invasionLaneKey = invasionLane(m.to_col);
+        break;
+      }
+    }
+
+    // === TEMPO & RHYTHM ===
+    const myAttackMoves = (playerMoves as Move[]).filter((m) => m.move_type === "attack");
+    const combatMoveNumbers = myAttackMoves.map((m) => m.move_number);
+    let cadenceSum = 0;
+    let cadenceCount = 0;
+    for (let i = 1; i < combatMoveNumbers.length; i++) {
+      cadenceSum += combatMoveNumbers[i] - combatMoveNumbers[i - 1];
+      cadenceCount++;
+    }
+    const openingSpeed = combatMoveNumbers.length > 0 ? combatMoveNumbers[0] : null;
+    const threshold75 = Math.floor(totalMoves * 0.75);
+    const endgameEarlyAttacks = myAttackMoves.filter((m) => m.move_number <= threshold75).length;
+    const endgameLateAttacks = myAttackMoves.filter((m) => m.move_number > threshold75).length;
+
+    let thinkSumMs = 0;
+    let thinkCount = 0;
+    for (let i = 1; i < moves.length; i++) {
+      const prev = moves[i - 1] as Move;
+      const curr = moves[i] as Move;
+      if (curr.player_slot !== slot || !prev.created_at || !curr.created_at) continue;
+      const diff =
+        new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime();
+      if (diff > 0 && diff < 600_000) {
+        thinkSumMs += diff;
+        thinkCount++;
+      }
+    }
+
+    const mergedPhaseCareer = mergePhaseCareer(stats.phase_career ?? {}, gamePhaseStats);
+
     // === COMBAT HEATMAP ===
     const heatmap: Record<string, { attacks: number; wins: number }> = {
       ...(stats.attack_heatmap ?? {}),
@@ -1114,6 +1173,27 @@ Deno.serve(async (req) => {
         attack_heatmap: heatmap,
         kills_by_rank: killsByRank,
         deaths_by_rank: deathsByRank,
+        flank_left_moves: (stats.flank_left_moves ?? 0) + flankLeft,
+        flank_right_moves: (stats.flank_right_moves ?? 0) + flankRight,
+        lake_corridor_moves: (stats.lake_corridor_moves ?? 0) + lakeCorridor,
+        defense_depth_sum: Number(stats.defense_depth_sum ?? 0) + defenseDepthSum,
+        defense_depth_count: (stats.defense_depth_count ?? 0) + defenseDepthCount,
+        invasion_lane_left:
+          (stats.invasion_lane_left ?? 0) + (invasionLaneKey === "left" ? 1 : 0),
+        invasion_lane_center:
+          (stats.invasion_lane_center ?? 0) + (invasionLaneKey === "center" ? 1 : 0),
+        invasion_lane_right:
+          (stats.invasion_lane_right ?? 0) + (invasionLaneKey === "right" ? 1 : 0),
+        combat_cadence_sum: (stats.combat_cadence_sum ?? 0) + cadenceSum,
+        combat_cadence_count: (stats.combat_cadence_count ?? 0) + cadenceCount,
+        opening_speed_sum: (stats.opening_speed_sum ?? 0) + (openingSpeed ?? 0),
+        opening_speed_games:
+          (stats.opening_speed_games ?? 0) + (openingSpeed !== null ? 1 : 0),
+        endgame_accel_early: (stats.endgame_accel_early ?? 0) + endgameEarlyAttacks,
+        endgame_accel_late: (stats.endgame_accel_late ?? 0) + endgameLateAttacks,
+        think_time_sum_ms: Number(stats.think_time_sum_ms ?? 0) + thinkSumMs,
+        think_time_count: (stats.think_time_count ?? 0) + thinkCount,
+        phase_career: mergedPhaseCareer,
         updated_at: new Date().toISOString(),
       })
       .eq("player_id", playerId);
