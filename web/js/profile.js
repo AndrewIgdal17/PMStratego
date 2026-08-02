@@ -78,12 +78,29 @@ function formatInfoArchetype(key) {
   return map[key] ?? key;
 }
 
-function memoryPctDisplay(hits, misses) {
+const MIN_MEMORY_TESTS = 5;
+
+function insufficientMemoryDisplay() {
+  return `<span data-tooltip="Need 5+ memory tests to display">—</span>`;
+}
+
+function memoryScoreDisplay(hitsW, missesW, hits, misses) {
+  const hw = Number(hitsW ?? 0);
+  const mw = Number(missesW ?? 0);
   const h = Number(hits ?? 0);
   const m = Number(misses ?? 0);
-  const total = h + m;
-  if (total <= 0) return "—";
-  return `${((h / total) * 100).toFixed(0)}%`;
+  const n = h + m;
+  if (n < MIN_MEMORY_TESTS) return insufficientMemoryDisplay();
+  const pct = hw + mw > 0 ? ((hw / (hw + mw)) * 100).toFixed(0) : ((h / n) * 100).toFixed(0);
+  return `${pct}% (${h}/${n} correct)`;
+}
+
+function memoryCountDisplay(hits, misses) {
+  const h = Number(hits ?? 0);
+  const m = Number(misses ?? 0);
+  const n = h + m;
+  if (n < MIN_MEMORY_TESTS) return insufficientMemoryDisplay();
+  return `${((h / n) * 100).toFixed(0)}% (${h}/${n} correct)`;
 }
 
 function renderScoutingTags(scouting) {
@@ -230,13 +247,16 @@ function renderStats(stats) {
     ]},
     { title: "Memory & Deduction", items: [
       ["Memory Score",
-        memoryPctDisplay(stats.memory_hits_w, stats.memory_misses_w),
-        "When you re-engage a piece you previously saw in combat, how often do you play as if you remember what it is?"],
+        memoryScoreDisplay(
+          stats.memory_hits_w, stats.memory_misses_w,
+          stats.memory_hits, stats.memory_misses,
+        ),
+        "Weighted accuracy when re-engaging a piece you previously identified — expensive mistakes count more. Shows percent and unweighted correct count."],
       ["Bomb Retention",
-        memoryPctDisplay(stats.memory_bomb_hits, stats.memory_bomb_misses),
+        memoryCountDisplay(stats.memory_bomb_hits, stats.memory_bomb_misses),
         "When attacking a piece you previously learned was a Bomb, how often do you send a Miner?"],
       ["Position Tracking",
-        memoryPctDisplay(stats.memory_track_hits, stats.memory_track_misses),
+        memoryCountDisplay(stats.memory_track_hits, stats.memory_track_misses),
         "When a revealed piece moves to a new position, how often do you still find it?"],
       ["Memory Half-Life",
         stats.memory_scouting?.half_life_moves != null
