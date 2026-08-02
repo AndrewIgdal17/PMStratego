@@ -2,11 +2,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  binPhaseEvents,
+  emptyPhaseBin,
+  emptyPhaseStats,
+  mergeIwPhaseFields,
   mergeMemoryScoutingWithCareer,
+  mergePhaseCareer,
   runInformationWarfarePass,
   topMemoryMoments,
   type MemoryEvent,
   type MoveLike,
+  type PhaseBin,
+  type PhaseStatsStory,
   type PieceLike,
 } from "../_shared/information-warfare.ts";
 
@@ -46,54 +53,6 @@ const RANK_VALUE: Record<string, number> = {
   [R.FLAG]: 0,
 };
 
-type PhaseBin = {
-  reveal_attacks: number;
-  reveal_wins: number;
-  trade_sum: number;
-  trade_count: number;
-  attacks: number;
-  attack_wins: number;
-  avenge_kills: number;
-  avenge_opportunities: number;
-};
-
-function emptyPhaseBin(): PhaseBin {
-  return {
-    reveal_attacks: 0,
-    reveal_wins: 0,
-    trade_sum: 0,
-    trade_count: 0,
-    attacks: 0,
-    attack_wins: 0,
-    avenge_kills: 0,
-    avenge_opportunities: 0,
-  };
-}
-
-function emptyPhaseStats() {
-  return {
-    by_capture_quarter: {
-      q1: emptyPhaseBin(),
-      q2: emptyPhaseBin(),
-      q3: emptyPhaseBin(),
-      q4: emptyPhaseBin(),
-    },
-    by_material_state: {
-      behind: emptyPhaseBin(),
-      even: emptyPhaseBin(),
-      ahead: emptyPhaseBin(),
-      dominant: emptyPhaseBin(),
-    },
-    by_info_state: {
-      deep_fog: emptyPhaseBin(),
-      partial: emptyPhaseBin(),
-      known: emptyPhaseBin(),
-    },
-  };
-}
-
-type PhaseStats = ReturnType<typeof emptyPhaseStats>;
-
 function mergePhaseBin(target: PhaseBin, delta: PhaseBin): void {
   target.reveal_attacks += delta.reveal_attacks;
   target.reveal_wins += delta.reveal_wins;
@@ -103,9 +62,13 @@ function mergePhaseBin(target: PhaseBin, delta: PhaseBin): void {
   target.attack_wins += delta.attack_wins;
   target.avenge_kills += delta.avenge_kills;
   target.avenge_opportunities += delta.avenge_opportunities;
+  target.memory_hits_w += delta.memory_hits_w;
+  target.memory_misses_w += delta.memory_misses_w;
+  target.deduction_latency_sum += delta.deduction_latency_sum;
+  target.deduction_latency_count += delta.deduction_latency_count;
 }
 
-function mergePhaseStats(target: PhaseStats, delta: PhaseStats): void {
+function mergePhaseStats(target: PhaseStatsStory, delta: PhaseStatsStory): void {
   for (const lens of ["by_capture_quarter", "by_material_state", "by_info_state"] as const) {
     for (const key of Object.keys(target[lens])) {
       mergePhaseBin(
@@ -114,27 +77,6 @@ function mergePhaseStats(target: PhaseStats, delta: PhaseStats): void {
       );
     }
   }
-}
-
-function mergePhaseCareer(
-  existing: Record<string, unknown> | null | undefined,
-  gamePhase: PhaseStats,
-): Record<string, unknown> {
-  const out = JSON.parse(JSON.stringify(existing ?? {})) as Record<
-    string,
-    Record<string, PhaseBin>
-  >;
-  for (const lens of ["by_capture_quarter", "by_material_state", "by_info_state"] as const) {
-    if (!out[lens]) out[lens] = {};
-    for (const key of Object.keys(gamePhase[lens])) {
-      if (!out[lens][key]) out[lens][key] = emptyPhaseBin();
-      mergePhaseBin(
-        out[lens][key],
-        gamePhase[lens][key as keyof typeof gamePhase[typeof lens]],
-      );
-    }
-  }
-  return out;
 }
 
 /** Quartile of captures completed so far (captures BEFORE current combat). */
@@ -361,7 +303,7 @@ Deno.serve(async (req) => {
   }
 
   // === PER-GAME STORY (game-wide, before per-slot loop) ===
-  const phaseStatsBySlot: Record<1 | 2, PhaseStats> = {
+  const phaseStatsBySlot: Record<1 | 2, PhaseStatsStory> = {
     1: emptyPhaseStats(),
     2: emptyPhaseStats(),
   };
@@ -925,6 +867,10 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Post-hoc: bin IW memory + deduction latency into same phase lenses
+    const iwPhaseStats = binPhaseEvents(iw.phaseEvents, iw.myCaptures);
+    mergeIwPhaseFields(gamePhaseStats, iwPhaseStats);
+
     mergePhaseStats(phaseStatsBySlot[slot], gamePhaseStats);
 
     // === BOARD GEOGRAPHY ===
@@ -984,7 +930,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const mergedPhaseCareer = mergePhaseCareer(stats.phase_career ?? {}, gamePhaseStats);
+    const mergedPhaseCareer = mergePhaseCareer(
+      stats.phase_career as PhaseStatsStory | null | undefined,
+      gamePhaseStats,
+    );
 
     // === COMBAT HEATMAP ===
     const heatmap: Record<string, { attacks: number; wins: number }> = {

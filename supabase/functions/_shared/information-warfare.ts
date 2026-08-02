@@ -1294,3 +1294,195 @@ export function runInformationWarfarePass(
     phaseEvents,
   };
 }
+
+// --- Phase-binning (IW + memory + avenge) ---
+
+export type PhaseBin = {
+  reveal_attacks: number;
+  reveal_wins: number;
+  trade_sum: number;
+  trade_count: number;
+  memory_hits_w: number;
+  memory_misses_w: number;
+  attacks: number;
+  attack_wins: number;
+  avenge_kills: number;
+  avenge_opportunities: number;
+  deduction_latency_sum: number;
+  deduction_latency_count: number;
+};
+
+export function emptyPhaseBin(): PhaseBin {
+  return {
+    reveal_attacks: 0,
+    reveal_wins: 0,
+    trade_sum: 0,
+    trade_count: 0,
+    memory_hits_w: 0,
+    memory_misses_w: 0,
+    attacks: 0,
+    attack_wins: 0,
+    avenge_kills: 0,
+    avenge_opportunities: 0,
+    deduction_latency_sum: 0,
+    deduction_latency_count: 0,
+  };
+}
+
+export type PhaseStatsStory = {
+  by_capture_quarter: Record<"q1" | "q2" | "q3" | "q4", PhaseBin>;
+  by_material_state: Record<"behind" | "even" | "ahead" | "dominant", PhaseBin>;
+  by_info_state: Record<"deep_fog" | "partial" | "known", PhaseBin>;
+};
+
+export function emptyPhaseStats(): PhaseStatsStory {
+  return {
+    by_capture_quarter: {
+      q1: emptyPhaseBin(),
+      q2: emptyPhaseBin(),
+      q3: emptyPhaseBin(),
+      q4: emptyPhaseBin(),
+    },
+    by_material_state: {
+      behind: emptyPhaseBin(),
+      even: emptyPhaseBin(),
+      ahead: emptyPhaseBin(),
+      dominant: emptyPhaseBin(),
+    },
+    by_info_state: {
+      deep_fog: emptyPhaseBin(),
+      partial: emptyPhaseBin(),
+      known: emptyPhaseBin(),
+    },
+  };
+}
+
+function captureQuarterPhase(
+  capturesBefore: number,
+  totalCaptures: number,
+): "q1" | "q2" | "q3" | "q4" {
+  if (totalCaptures <= 0) return "q1";
+  const r = capturesBefore / totalCaptures;
+  if (r < 0.25) return "q1";
+  if (r < 0.5) return "q2";
+  if (r < 0.75) return "q3";
+  return "q4";
+}
+
+function materialStatePhase(diff: number): "behind" | "even" | "ahead" | "dominant" {
+  if (diff < -5) return "behind";
+  if (diff <= 5) return "even";
+  if (diff <= 15) return "ahead";
+  return "dominant";
+}
+
+function infoStatePhase(knownCount: number): "deep_fog" | "partial" | "known" {
+  if (knownCount < 5) return "deep_fog";
+  if (knownCount < 15) return "partial";
+  return "known";
+}
+
+function applyToPhaseBin(bin: PhaseBin, e: PhaseEvent): void {
+  if (e.kind === "memory") {
+    if (e.memory_hit === true) bin.memory_hits_w += e.memory_w;
+    else if (e.memory_hit === false) bin.memory_misses_w += e.memory_w;
+    return;
+  }
+  if (e.is_my_attack) {
+    bin.attacks++;
+    if (e.attack_win) bin.attack_wins++;
+    if (e.reveal_attack) {
+      bin.reveal_attacks++;
+      if (e.reveal_win) bin.reveal_wins++;
+    }
+  }
+  bin.trade_sum += e.trade_delta;
+  bin.trade_count++;
+  if (e.avenge_opportunity) bin.avenge_opportunities++;
+  if (e.avenge_kill) bin.avenge_kills++;
+  if (e.deduction_latency !== null) {
+    bin.deduction_latency_sum += e.deduction_latency;
+    bin.deduction_latency_count++;
+  }
+}
+
+export function binPhaseEvents(events: PhaseEvent[], totalCaptures: number): PhaseStatsStory {
+  const out = emptyPhaseStats();
+  for (const e of events) {
+    const q = captureQuarterPhase(e.captures_before, totalCaptures);
+    const ms = materialStatePhase(e.material_diff_before);
+    const is = infoStatePhase(e.my_ledger_size);
+    applyToPhaseBin(out.by_capture_quarter[q], e);
+    applyToPhaseBin(out.by_material_state[ms], e);
+    applyToPhaseBin(out.by_info_state[is], e);
+  }
+  return out;
+}
+
+function addPhaseBins(a: PhaseBin, b: PhaseBin): PhaseBin {
+  return {
+    reveal_attacks: a.reveal_attacks + b.reveal_attacks,
+    reveal_wins: a.reveal_wins + b.reveal_wins,
+    trade_sum: a.trade_sum + b.trade_sum,
+    trade_count: a.trade_count + b.trade_count,
+    memory_hits_w: a.memory_hits_w + b.memory_hits_w,
+    memory_misses_w: a.memory_misses_w + b.memory_misses_w,
+    attacks: a.attacks + b.attacks,
+    attack_wins: a.attack_wins + b.attack_wins,
+    avenge_kills: a.avenge_kills + b.avenge_kills,
+    avenge_opportunities: a.avenge_opportunities + b.avenge_opportunities,
+    deduction_latency_sum: a.deduction_latency_sum + b.deduction_latency_sum,
+    deduction_latency_count: a.deduction_latency_count + b.deduction_latency_count,
+  };
+}
+
+/** Merge only IW-specific phase fields (memory + deduction) into an existing combat phase stats blob. */
+export function mergeIwPhaseFields(target: PhaseStatsStory, source: PhaseStatsStory): void {
+  for (const k of ["q1", "q2", "q3", "q4"] as const) {
+    const t = target.by_capture_quarter[k];
+    const s = source.by_capture_quarter[k];
+    t.memory_hits_w += s.memory_hits_w;
+    t.memory_misses_w += s.memory_misses_w;
+    t.deduction_latency_sum += s.deduction_latency_sum;
+    t.deduction_latency_count += s.deduction_latency_count;
+  }
+  for (const k of ["behind", "even", "ahead", "dominant"] as const) {
+    const t = target.by_material_state[k];
+    const s = source.by_material_state[k];
+    t.memory_hits_w += s.memory_hits_w;
+    t.memory_misses_w += s.memory_misses_w;
+    t.deduction_latency_sum += s.deduction_latency_sum;
+    t.deduction_latency_count += s.deduction_latency_count;
+  }
+  for (const k of ["deep_fog", "partial", "known"] as const) {
+    const t = target.by_info_state[k];
+    const s = source.by_info_state[k];
+    t.memory_hits_w += s.memory_hits_w;
+    t.memory_misses_w += s.memory_misses_w;
+    t.deduction_latency_sum += s.deduction_latency_sum;
+    t.deduction_latency_count += s.deduction_latency_count;
+  }
+}
+
+export function mergePhaseCareer(
+  existing: PhaseStatsStory | Record<string, unknown> | null | undefined,
+  game: PhaseStatsStory,
+): PhaseStatsStory {
+  const base = existing && (existing as PhaseStatsStory).by_capture_quarter
+    ? (existing as PhaseStatsStory)
+    : emptyPhaseStats();
+  const out = emptyPhaseStats();
+  for (const k of ["q1", "q2", "q3", "q4"] as const) {
+    out.by_capture_quarter[k] = addPhaseBins(
+      base.by_capture_quarter[k],
+      game.by_capture_quarter[k],
+    );
+  }
+  for (const k of ["behind", "even", "ahead", "dominant"] as const) {
+    out.by_material_state[k] = addPhaseBins(base.by_material_state[k], game.by_material_state[k]);
+  }
+  for (const k of ["deep_fog", "partial", "known"] as const) {
+    out.by_info_state[k] = addPhaseBins(base.by_info_state[k], game.by_info_state[k]);
+  }
+  return out;
+}

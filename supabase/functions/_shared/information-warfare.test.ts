@@ -13,8 +13,12 @@ import {
   mergeMemoryScoutingWithCareer,
   emptyMemoryAccum,
   accumulateMemoryTests,
+  binPhaseEvents,
+  mergePhaseCareer,
+  emptyPhaseStats,
   type LegalMove,
   type PieceLike,
+  type PhaseEvent,
 } from "./information-warfare.ts";
 
 Deno.test("rankBeats: lower number wins; Spy→Marshal; Miner→Bomb", () => {
@@ -270,4 +274,65 @@ Deno.test("mergeMemoryScoutingWithCareer: sums career counters and age buckets",
   assertEquals(merged.miss_rate_by_age["6-15"].misses, 4);
   assertEquals(merged.marshal_hits, 1);
   assertEquals(merged.track_rate, 1 / 3);
+});
+
+Deno.test("binPhaseEvents: memory hits/misses route to all three lenses", () => {
+  const events: PhaseEvent[] = [
+    {
+      move_number: 10,
+      kind: "memory",
+      is_my_attack: true,
+      reveal_attack: false,
+      reveal_win: false,
+      trade_delta: 0,
+      attack_win: false,
+      memory_hit: true,
+      memory_w: 2,
+      my_ledger_size: 3,
+      material_diff_before: 0,
+      captures_before: 0,
+      avenge_opportunity: false,
+      avenge_kill: false,
+      deduction_latency: null,
+    },
+    {
+      move_number: 20,
+      kind: "memory",
+      is_my_attack: true,
+      reveal_attack: false,
+      reveal_win: false,
+      trade_delta: 0,
+      attack_win: false,
+      memory_hit: false,
+      memory_w: 1,
+      my_ledger_size: 16,
+      material_diff_before: 10,
+      captures_before: 3,
+      avenge_opportunity: false,
+      avenge_kill: false,
+      deduction_latency: null,
+    },
+  ];
+
+  const stats = binPhaseEvents(events, 4);
+  assertEquals(stats.by_capture_quarter.q1.memory_hits_w, 2);
+  assertEquals(stats.by_capture_quarter.q4.memory_misses_w, 1);
+  assertEquals(stats.by_material_state.even.memory_hits_w, 2);
+  assertEquals(stats.by_material_state.ahead.memory_misses_w, 1);
+  assertEquals(stats.by_info_state.deep_fog.memory_hits_w, 2);
+  assertEquals(stats.by_info_state.known.memory_misses_w, 1);
+});
+
+Deno.test("mergePhaseCareer: accumulates memory fields across games", () => {
+  const game = emptyPhaseStats();
+  game.by_info_state.deep_fog.memory_hits_w = 3;
+  game.by_info_state.deep_fog.memory_misses_w = 1;
+
+  const merged = mergePhaseCareer(null, game);
+  assertEquals(merged.by_info_state.deep_fog.memory_hits_w, 3);
+  assertEquals(merged.by_info_state.deep_fog.memory_misses_w, 1);
+
+  game.by_info_state.deep_fog.memory_hits_w = 2;
+  const again = mergePhaseCareer(merged, game);
+  assertEquals(again.by_info_state.deep_fog.memory_hits_w, 5);
 });
