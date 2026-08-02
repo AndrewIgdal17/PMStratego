@@ -16,14 +16,14 @@
 - **No exclusivity check** on theme (unlike player color) — both players may pick the same theme, different themes, or no theme, independently.
 - **No setup-only gate** on theme (unlike player color) — `set-token-theme` must succeed regardless of `games.status`.
 - **Default/unthemed rendering is unchanged** — the existing circular SVG coin (`createTokenSVG` in `web/js/token.js`) must not be modified; theming is purely additive/opt-in via a new sibling renderer.
-- **Migration numbering**: the color-claiming design (`docs/superpowers/specs/2026-08-02-stratego-color-claiming-design.md`, not yet implemented) has already committed to migration number `0016_player_colors.sql`. This plan's migration must use the next free number, `0017`, to avoid a collision when both features land.
+- **Migration numbering**: `0016_player_formations.sql` (private-formations plan) and `0017_player_colors.sql` (color-claiming plan, `docs/superpowers/plans/2026-08-02-stratego-color-claiming.md`) are already claimed by the other two plans from this same brainstorming session. This plan's migration must use the next free number, `0018`, to avoid a collision when all three land.
 - **No automated Edge Function test harness exists in this project** (verified: only `supabase/functions/_shared/information-warfare.test.ts` exists, and it tests a shared pure-logic module, not a specific `set-*` function) — `set-token-theme` is verified via the local Supabase stack (curl) plus one live production check, matching the established pattern for every other `set-*` function in this codebase.
 
 ---
 
 ## File structure
 
-- `supabase/migrations/0017_player_token_themes.sql` — new columns + `get_game_state`/`get_spectator_state` extension. One responsibility: schema + the two read paths that expose it.
+- `supabase/migrations/0018_player_token_themes.sql` — new columns + `get_game_state`/`get_spectator_state` extension. One responsibility: schema + the two read paths that expose it.
 - `supabase/functions/set-token-theme/index.ts` — new Edge Function, one responsibility: validate token + theme value, write the caller's own column.
 - `web/js/token.js` — modified. Adds the pure `tokenImagePath` helper (testable, no DOM), `resolveTokenImageUrl`, the new `createImageTokenCard` renderer, and the `createPieceToken` dispatcher. `createTokenSVG` itself is untouched.
 - `test/web/token.test.js` — new, unit tests for `tokenImagePath` only (the one piece of this feature that's pure logic; everything else is DOM/network glue, verified manually per this codebase's existing convention for `setup.js`/`game.js` UI code).
@@ -38,7 +38,7 @@
 ### Task 1: `games.player1_token_theme` / `player2_token_theme` columns + `get_game_state`/`get_spectator_state` extension
 
 **Files:**
-- Create: `supabase/migrations/0017_player_token_themes.sql`
+- Create: `supabase/migrations/0018_player_token_themes.sql`
 
 **Interfaces:**
 - Produces: `games.player1_token_theme text`, `games.player2_token_theme text` (values: `null | 'knights' | 'scifi' | 'wildlife'`). `get_game_state(p_token uuid)` and `get_spectator_state(p_room_code text)` now return two extra columns per row: `player1_token_theme text, player2_token_theme text` (redundant per row, same pattern the color-claiming design proposes for `player1_color`/`player2_color` — trivial and consistent with these functions' existing per-row shape).
@@ -48,7 +48,7 @@ No automated test — this is a schema-only change plus two `create or replace f
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- supabase/migrations/0017_player_token_themes.sql
+-- supabase/migrations/0018_player_token_themes.sql
 alter table games add column player1_token_theme text check (player1_token_theme in ('knights', 'scifi', 'wildlife'));
 alter table games add column player2_token_theme text check (player2_token_theme in ('knights', 'scifi', 'wildlife'));
 
@@ -158,7 +158,7 @@ cd /Users/ai17/Documents/Andys_Workshop/Projects/Stratego/code
 npx supabase start
 npx supabase db reset
 ```
-Expected: reset applies all migrations through `0017_player_token_themes.sql` with no errors.
+Expected: reset applies all migrations through `0018_player_token_themes.sql` with no errors.
 
 Then, with the local stack running, verify the new columns exist and the check constraint rejects bad values:
 ```bash
@@ -170,7 +170,7 @@ Expected: the `insert` returns two `null` values; the bad `update` fails with a 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0017_player_token_themes.sql
+git add supabase/migrations/0018_player_token_themes.sql
 git commit -m "feat: add games.player1_token_theme/player2_token_theme columns and expose via get_game_state/get_spectator_state"
 ```
 

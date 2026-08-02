@@ -15,7 +15,7 @@
 - Re-submitting your own already-committed color is always a no-op success, never a rejection.
 - An uncommitted/unknown color must render as neutral gray, never red — red no longer means "enemy."
 - No spectator-specific color handling — spectators just render whatever both committed colors are.
-- New migration must use the next free number: existing migrations run `0001`–`0015`, so this one is `0016_player_colors.sql`.
+- New migration must use the next free number: existing migrations run `0001`–`0015`, and `0016_player_formations.sql` is already claimed by the private-formations plan (`docs/superpowers/plans/2026-08-02-stratego-private-formations.md`), so this one is `0017_player_colors.sql`.
 - `set-color`'s server-side palette copy is a small, deliberate duplicate of `web/js/setup.js`'s `PLAYER_COLORS` hex list (not a cross-package import) — matches this project's established `_shared/`-module pattern and the spec's explicit call to keep it simple.
 
 ---
@@ -23,7 +23,7 @@
 ## File Structure
 
 **Create:**
-- `supabase/migrations/0016_player_colors.sql` — adds `player1_color`/`player2_color` to `games`; rebuilds `get_game_state` and `get_spectator_state` to return both columns on every row.
+- `supabase/migrations/0017_player_colors.sql` — adds `player1_color`/`player2_color` to `games`; rebuilds `get_game_state` and `get_spectator_state` to return both columns on every row.
 - `supabase/functions/_shared/colors.ts` — `PLAYER_COLOR_HEXES` palette, `firstAvailableColor()`, `validateColorClaim()` (pure, unit-testable).
 - `supabase/functions/_shared/colors.test.ts` — Deno tests for every `validateColorClaim` branch and `firstAvailableColor`.
 - `supabase/functions/set-color/index.ts` — the Edge Function; validates via `colors.ts`, writes the caller's slot column.
@@ -45,7 +45,7 @@
 ### Task 1: Migration — `player1_color`/`player2_color` columns + color-aware state functions
 
 **Files:**
-- Create: `supabase/migrations/0016_player_colors.sql`
+- Create: `supabase/migrations/0017_player_colors.sql`
 
 **Interfaces:**
 - Produces: `games.player1_color`, `games.player2_color` (nullable `text`, no CHECK constraint — validated at the application layer by `set-color`, matching how `bot_difficulty`/`bot_personality` are constrained in SQL but colors are validated against a list that already lives in code). `get_game_state(p_token uuid)` and `get_spectator_state(p_room_code text)` both now return `player1_color text, player2_color text` as the last two columns of their existing row shape (`piece_id, player_slot, rank, row_idx, col_idx, alive, is_mine, player1_color, player2_color`). Every later task that reads state rows (Task 6's `game.js`) relies on exactly these two column names.
@@ -55,7 +55,7 @@
 Postgres does not allow `CREATE OR REPLACE FUNCTION` to change a function's return columns, so both functions must be dropped before being recreated with the two extra columns.
 
 ```sql
--- supabase/migrations/0016_player_colors.sql
+-- supabase/migrations/0017_player_colors.sql
 alter table games add column player1_color text;
 alter table games add column player2_color text;
 
@@ -176,7 +176,7 @@ Expected: output ends with `Finished supabase db reset.` and no error mentioning
 - [ ] **Step 3: Commit**
 
 ```bash
-git add supabase/migrations/0016_player_colors.sql
+git add supabase/migrations/0017_player_colors.sql
 git commit -m "feat: add player1_color/player2_color columns and expose them from get_game_state/get_spectator_state"
 ```
 
