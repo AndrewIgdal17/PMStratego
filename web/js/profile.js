@@ -244,6 +244,11 @@ function renderStats(stats) {
           ? `${((stats.ambush_wins / stats.ambush_defenses) * 100).toFixed(0)}%`
           : "—",
         "When enemies attack your still/never-moved pieces, how often does the still piece win?"],
+      ["Scout Discipline",
+        stats.scout_moves > 0
+          ? `${(100 - ((stats.scout_self_reveal_events ?? 0) / stats.scout_moves) * 100).toFixed(0)}%`
+          : "—",
+        "How often your Scouts move without revealing themselves — higher = more disciplined (only long-move when safe)"],
     ]},
     { title: "Memory & Deduction", items: [
       ["Memory Score",

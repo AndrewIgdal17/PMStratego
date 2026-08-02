@@ -602,6 +602,28 @@ Deno.test("asymmetricKnowledgeCount ignores combat sources", () => {
   assertEquals(asymmetricKnowledgeCount(L), 2);
 });
 
+Deno.test("scout self-reveal counts first long-move of my Scout", () => {
+  const pieces: PieceLike[] = [
+    { id: "scout", player_slot: 1, rank: "9", alive: true, row_idx: 7, col_idx: 0 },
+    { id: "e", player_slot: 2, rank: "5", alive: true, row_idx: 2, col_idx: 0 },
+  ];
+  const pieceById = new Map(pieces.map((p) => [p.id, p]));
+  const moves: MoveLike[] = [
+    {
+      piece_id: "scout", player_slot: 1, from_row: 7, from_col: 0, to_row: 4, to_col: 0,
+      move_type: "move", outcome: null, attacker_rank: null, defender_rank: null,
+      defender_piece_id: null, move_number: 1,
+    },
+    {
+      piece_id: "scout", player_slot: 1, from_row: 4, from_col: 0, to_row: 2, to_col: 0,
+      move_type: "move", outcome: null, attacker_rank: null, defender_rank: null,
+      defender_piece_id: null, move_number: 2,
+    },
+  ];
+  const iw = runInformationWarfarePass(1, moves, pieces, pieceById, 2);
+  assertEquals(iw.scoutSelfRevealEvents, 1);
+});
+
 Deno.test("info edge stays 0 across pure combat (symmetric)", () => {
   const pieces: PieceLike[] = [
     { id: "a1", player_slot: 1, rank: "3", alive: true, row_idx: 6, col_idx: 0 },

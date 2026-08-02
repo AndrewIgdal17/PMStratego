@@ -1024,6 +1024,7 @@ export interface IWGameResult {
   motionEntropy: number;
   myCaptures: number;
 
+  scoutSelfRevealEvents: number;
   memory: MemoryGameAccum;
   infoEdgeCurve: number[];
   phaseEvents: PhaseEvent[];
@@ -1107,6 +1108,7 @@ export function runInformationWarfarePass(
   let controlledExposureAttacks = 0;
   let controlledExposureBurned = 0;
   let revealHalfLifeMove: number | null = null;
+  let scoutSelfRevealEvents = 0;
 
   const memory = emptyMemoryAccum();
   const infoEdgeCurve: number[] = [];
@@ -1274,6 +1276,13 @@ export function runInformationWarfarePass(
       }
     }
 
+    if (isMyMove && inferScoutFromMove(m)) {
+      const piece = pieceById.get(m.piece_id);
+      if (piece?.rank === "9" && !theirLedger.has(m.piece_id)) {
+        scoutSelfRevealEvents++;
+      }
+    }
+
     applyLedgerUpdatesFromMove(m, slot, myLedger, theirLedger, myVacated, pieceById);
 
     if (revealHalfLifeMove === null && myMovableTotal > 0) {
@@ -1413,6 +1422,7 @@ export function runInformationWarfarePass(
     silentMajority,
     motionEntropy,
     myCaptures,
+    scoutSelfRevealEvents,
     memory,
     infoEdgeCurve,
     phaseEvents,

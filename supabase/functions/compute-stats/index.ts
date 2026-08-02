@@ -1046,6 +1046,8 @@ Deno.serve(async (req) => {
         total_moves: stats.total_moves + playerMoves.length,
         moves_in_enemy_half: stats.moves_in_enemy_half + enemyHalfMoves,
         scout_moves: stats.scout_moves + scoutMoves,
+        scout_self_reveal_events:
+          (stats.scout_self_reveal_events ?? 0) + iw.scoutSelfRevealEvents,
         attacks_on_unknown: stats.attacks_on_unknown + myAttacks.length,
         attacks_total: stats.attacks_total + myAttacks.length,
         lateral_non_combat_moves: stats.lateral_non_combat_moves + lateralNonCombat,
