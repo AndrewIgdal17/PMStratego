@@ -93,6 +93,44 @@ export function asymmetricKnowledgeCount(ledger: KnowledgeLedger): number {
   return n;
 }
 
+export const ARMY_COMPOSITION_IW: Record<string, number> = {
+  "1": 1, "2": 1, "3": 2, "4": 3, "5": 4, "6": 4, "7": 4,
+  "8": 5, "9": 8, "10": 1, BOMB: 6, FLAG: 1,
+};
+
+/**
+ * V1: if exactly one enemy piece is alive+unrevealed AND exactly one
+ * composition slot remains unaccounted across all ranks, deduce that piece.
+ */
+export function checkEliminationDeductions(
+  ledger: KnowledgeLedger,
+  enemyPieces: PieceLike[],
+  boardAlive: Set<string>,
+): Array<{ pieceId: string; deducedRank: string }> {
+  const accounted: Record<string, number> = {};
+  for (const e of ledger.values()) {
+    accounted[e.rank] = (accounted[e.rank] ?? 0) + 1;
+  }
+
+  let totalLeft = 0;
+  let remainingRank: string | null = null;
+  for (const [rank, total] of Object.entries(ARMY_COMPOSITION_IW)) {
+    const left = total - (accounted[rank] ?? 0);
+    if (left <= 0) continue;
+    totalLeft += left;
+    if (left === 1) remainingRank = rank;
+  }
+
+  if (totalLeft !== 1 || remainingRank === null) return [];
+
+  const unrevealedAlive = enemyPieces.filter(
+    (p) => boardAlive.has(p.id) && !ledger.has(p.id),
+  );
+  if (unrevealedAlive.length !== 1) return [];
+
+  return [{ pieceId: unrevealedAlive[0].id, deducedRank: remainingRank }];
+}
+
 export function movableRank(rank: string): boolean {
   return rank !== "BOMB" && rank !== "FLAG";
 }
@@ -1226,7 +1264,33 @@ export function runInformationWarfarePass(
       }
     }
 
+    applyMoveToBoard(board, m);
+
     if (m.move_type === "attack" && m.outcome) {
+      const enemySlot = slot === 1 ? 2 : 1;
+      {
+        const enemyPieces = pieces.filter((p) => p.player_slot === enemySlot);
+        for (const d of checkEliminationDeductions(myLedger, enemyPieces, board.alive)) {
+          const pos = board.pos.get(d.pieceId);
+          learnPiece(
+            myLedger, d.pieceId, d.deducedRank,
+            pos?.row ?? 0, pos?.col ?? 0, m.move_number,
+            "elimination_deduction",
+          );
+        }
+      }
+      {
+        const myPiecesList = pieces.filter((p) => p.player_slot === slot);
+        for (const d of checkEliminationDeductions(theirLedger, myPiecesList, board.alive)) {
+          const pos = board.pos.get(d.pieceId);
+          learnPiece(
+            theirLedger, d.pieceId, d.deducedRank,
+            pos?.row ?? 0, pos?.col ?? 0, m.move_number,
+            "elimination_deduction",
+          );
+        }
+      }
+
       infoEdgeCurve.push(
         asymmetricKnowledgeCount(myLedger) -
           asymmetricKnowledgeCount(theirLedger),
@@ -1276,7 +1340,6 @@ export function runInformationWarfarePass(
       });
     }
 
-    applyMoveToBoard(board, m);
   }
 
   for (const enemyId of firstRevealedByMe) {

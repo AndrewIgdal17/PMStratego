@@ -6,6 +6,8 @@ import {
   classifyCombatEvent,
   learnPiece,
   createLedger,
+  markPieceDead,
+  checkEliminationDeductions,
   movableRank,
   applyLedgerUpdatesFromMove,
   asymmetricKnowledgeCount,
@@ -502,6 +504,57 @@ Deno.test("combat learn tags combat_as_attacker / combat_as_defender", () => {
   );
   assertEquals(my.get("them")!.reveal_source, "combat_as_attacker");
   assertEquals(their.get("me")!.reveal_source, "combat_as_defender");
+});
+
+Deno.test("v1 deduction: last unrevealed piece is unique remaining rank", () => {
+  const L = createLedger();
+  const ranks = ["1", "2", "3", "3", "4", "4", "4", "5", "5", "5", "5",
+    "6", "6", "6", "6", "7", "7", "7", "7", "8", "8", "8", "8", "8",
+    "9", "9", "9", "9", "9", "9", "9", "9", "10",
+    "BOMB", "BOMB", "BOMB", "BOMB", "BOMB", "BOMB"];
+  ranks.forEach((r, i) => {
+    learnPiece(L, `known${i}`, r, 0, 0, 1, "combat_as_attacker");
+    markPieceDead(L, `known${i}`);
+  });
+  const alive = new Set(["flag"]);
+  const enemyPieces: PieceLike[] = [
+    { id: "flag", player_slot: 2, rank: "FLAG", alive: true, row_idx: 0, col_idx: 0 },
+  ];
+  const d = checkEliminationDeductions(L, enemyPieces, alive);
+  assertEquals(d, [{ pieceId: "flag", deducedRank: "FLAG" }]);
+});
+
+Deno.test("v1 deduction: no fire when multiple unrevealed remain", () => {
+  const L = createLedger();
+  learnPiece(L, "k1", "1", 0, 0, 1, "combat_as_attacker");
+  markPieceDead(L, "k1");
+  const alive = new Set(["u1", "u2"]);
+  const enemyPieces: PieceLike[] = [
+    { id: "u1", player_slot: 2, rank: "FLAG", alive: true },
+    { id: "u2", player_slot: 2, rank: "2", alive: true },
+  ];
+  assertEquals(checkEliminationDeductions(L, enemyPieces, alive).length, 0);
+});
+
+Deno.test("deduction learn counts toward asymmetric knowledge", () => {
+  const L = createLedger();
+  const ranks = ["1", "2", "3", "3", "4", "4", "4", "5", "5", "5", "5",
+    "6", "6", "6", "6", "7", "7", "7", "7", "8", "8", "8", "8", "8",
+    "9", "9", "9", "9", "9", "9", "9", "9", "10",
+    "BOMB", "BOMB", "BOMB", "BOMB", "BOMB", "BOMB"];
+  ranks.forEach((r, i) => {
+    learnPiece(L, `known${i}`, r, 0, 0, 1, "combat_as_attacker");
+    markPieceDead(L, `known${i}`);
+  });
+  const alive = new Set(["flag"]);
+  const enemyPieces: PieceLike[] = [
+    { id: "flag", player_slot: 2, rank: "FLAG", alive: true, row_idx: 0, col_idx: 0 },
+  ];
+  const d = checkEliminationDeductions(L, enemyPieces, alive);
+  assertEquals(d.length, 1);
+  learnPiece(L, d[0].pieceId, d[0].deducedRank, 0, 0, 40, "elimination_deduction");
+  assertEquals(asymmetricKnowledgeCount(L), 1);
+  assertEquals(L.get("flag")!.reveal_source, "elimination_deduction");
 });
 
 Deno.test("asymmetricKnowledgeCount ignores combat sources", () => {
