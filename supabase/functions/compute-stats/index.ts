@@ -38,6 +38,175 @@ const RANK_VALUE: Record<string, number> = {
   [R.FLAG]: 0,
 };
 
+type PhaseBin = {
+  reveal_attacks: number;
+  reveal_wins: number;
+  trade_sum: number;
+  trade_count: number;
+  attacks: number;
+  attack_wins: number;
+  avenge_kills: number;
+  avenge_opportunities: number;
+};
+
+function emptyPhaseBin(): PhaseBin {
+  return {
+    reveal_attacks: 0,
+    reveal_wins: 0,
+    trade_sum: 0,
+    trade_count: 0,
+    attacks: 0,
+    attack_wins: 0,
+    avenge_kills: 0,
+    avenge_opportunities: 0,
+  };
+}
+
+function emptyPhaseStats() {
+  return {
+    by_capture_quarter: {
+      q1: emptyPhaseBin(),
+      q2: emptyPhaseBin(),
+      q3: emptyPhaseBin(),
+      q4: emptyPhaseBin(),
+    },
+    by_material_state: {
+      behind: emptyPhaseBin(),
+      even: emptyPhaseBin(),
+      ahead: emptyPhaseBin(),
+      dominant: emptyPhaseBin(),
+    },
+    by_info_state: {
+      deep_fog: emptyPhaseBin(),
+      partial: emptyPhaseBin(),
+      known: emptyPhaseBin(),
+    },
+  };
+}
+
+type PhaseStats = ReturnType<typeof emptyPhaseStats>;
+
+function mergePhaseBin(target: PhaseBin, delta: PhaseBin): void {
+  target.reveal_attacks += delta.reveal_attacks;
+  target.reveal_wins += delta.reveal_wins;
+  target.trade_sum += delta.trade_sum;
+  target.trade_count += delta.trade_count;
+  target.attacks += delta.attacks;
+  target.attack_wins += delta.attack_wins;
+  target.avenge_kills += delta.avenge_kills;
+  target.avenge_opportunities += delta.avenge_opportunities;
+}
+
+function mergePhaseStats(target: PhaseStats, delta: PhaseStats): void {
+  for (const lens of ["by_capture_quarter", "by_material_state", "by_info_state"] as const) {
+    for (const key of Object.keys(target[lens])) {
+      mergePhaseBin(
+        target[lens][key as keyof typeof target[typeof lens]],
+        delta[lens][key as keyof typeof delta[typeof lens]],
+      );
+    }
+  }
+}
+
+function mergePhaseCareer(
+  existing: Record<string, unknown> | null | undefined,
+  gamePhase: PhaseStats,
+): Record<string, unknown> {
+  const out = JSON.parse(JSON.stringify(existing ?? {})) as Record<
+    string,
+    Record<string, PhaseBin>
+  >;
+  for (const lens of ["by_capture_quarter", "by_material_state", "by_info_state"] as const) {
+    if (!out[lens]) out[lens] = {};
+    for (const key of Object.keys(gamePhase[lens])) {
+      if (!out[lens][key]) out[lens][key] = emptyPhaseBin();
+      mergePhaseBin(
+        out[lens][key],
+        gamePhase[lens][key as keyof typeof gamePhase[typeof lens]],
+      );
+    }
+  }
+  return out;
+}
+
+/** Quartile of captures completed so far (captures BEFORE current combat). */
+function captureQuarter(capturesSoFar: number, totalCaptures: number): "q1" | "q2" | "q3" | "q4" {
+  if (totalCaptures <= 0) return "q1";
+  const pct = capturesSoFar / totalCaptures;
+  if (pct < 0.25) return "q1";
+  if (pct < 0.5) return "q2";
+  if (pct < 0.75) return "q3";
+  return "q4";
+}
+
+function materialState(diff: number): "behind" | "even" | "ahead" | "dominant" {
+  if (diff < -5) return "behind";
+  if (diff <= 5) return "even";
+  if (diff <= 15) return "ahead";
+  return "dominant";
+}
+
+/** deep_fog < 5; partial 5–14; known >= 15 */
+function infoState(knownCount: number): "deep_fog" | "partial" | "known" {
+  if (knownCount < 5) return "deep_fog";
+  if (knownCount < 15) return "partial";
+  return "known";
+}
+
+/**
+ * Last index where curve sign permanently flips to the final sign.
+ * combatMoves = attack moves with outcomes, same order as curve samples.
+ */
+function findTurningPoint(
+  curve: number[],
+  combatMoves: Move[],
+): { move_number: number; combat_index: number } | null {
+  if (curve.length < 2 || combatMoves.length !== curve.length) return null;
+  let lastCrossIndex: number | null = null;
+  for (let i = 1; i < curve.length; i++) {
+    const prev = curve[i - 1];
+    const curr = curve[i];
+    if (curr === 0) continue;
+    if (prev === 0 || Math.sign(prev) !== Math.sign(curr)) {
+      lastCrossIndex = i;
+    }
+  }
+  if (lastCrossIndex === null) return null;
+  const finalSign = Math.sign(curve[curve.length - 1]);
+  if (finalSign === 0) return null;
+  for (let i = lastCrossIndex; i < curve.length; i++) {
+    if (curve[i] !== 0 && Math.sign(curve[i]) !== finalSign) return null;
+  }
+  return {
+    move_number: combatMoves[lastCrossIndex].move_number,
+    combat_index: lastCrossIndex,
+  };
+}
+
+function invasionLane(col: number): "left" | "center" | "right" {
+  if (col <= 3) return "left";
+  if (col <= 5) return "center";
+  return "right";
+}
+
+/** True when this combat is a capture (kill) for `slot`. */
+function isCaptureForSlot(m: Move, slot: number, pieceById: Map<string, Piece>): boolean {
+  if (m.move_type !== "attack" || !m.outcome) return false;
+  if (m.player_slot === slot && m.outcome === "ATTACKER_WINS") return true;
+  if (m.player_slot !== slot && m.outcome === "DEFENDER_WINS" && m.defender_piece_id) {
+    const dp = pieceById.get(m.defender_piece_id);
+    return dp?.player_slot === slot;
+  }
+  return false;
+}
+
+/** Clean kill: ATTACKER_WINS or DEFENDER_WINS where defender is not Bomb (excludes defuses/trades). */
+function isCleanKill(m: Move): boolean {
+  if (m.move_type !== "attack" || !m.outcome) return false;
+  if (m.outcome === "TIE") return false;
+  return m.defender_rank !== R.BOMB;
+}
+
 function kFactor(gamesPlayed: number, rating: number): number {
   if (rating >= 2200) return 16;
   if (gamesPlayed <= 20) return 56;
@@ -63,6 +232,7 @@ interface Move {
   defender_rank: string | null;
   defender_piece_id: string | null;
   move_number: number;
+  created_at?: string;
 }
 
 interface Piece {
@@ -181,6 +351,286 @@ Deno.serve(async (req) => {
     curveP1.push(diffP1);
     curveP2.push(-diffP1);
   }
+
+  // === PER-GAME STORY (game-wide, before per-slot loop) ===
+  const phaseStatsBySlot: Record<1 | 2, PhaseStats> = {
+    1: emptyPhaseStats(),
+    2: emptyPhaseStats(),
+  };
+
+  const combatMoves = moves.filter(
+    (m: Move) => m.move_type === "attack" && m.outcome,
+  ) as Move[];
+
+  const pieceStats = new Map<
+    string,
+    {
+      moves_made: number;
+      kills: number;
+      distance: number;
+      first_move: number | null;
+      death_move: number | null;
+    }
+  >();
+  for (const p of pieces) {
+    pieceStats.set(p.id, {
+      moves_made: 0,
+      kills: 0,
+      distance: 0,
+      first_move: null,
+      death_move: null,
+    });
+  }
+
+  const killChains = {
+    1: { current: 0, best: 0, bestStart: 0, bestEnd: 0, curStart: 0 },
+    2: { current: 0, best: 0, bestStart: 0, bestEnd: 0, curStart: 0 },
+  };
+
+  let firstCasualty: {
+    rank: string;
+    player_slot: number;
+    move_number: number;
+    killed_by_rank: string;
+  } | null = null;
+
+  // Running positions + alive-at-time (INVARIANT 4)
+  const positionsByPiece = new Map<string, { row: number; col: number }>();
+  // Seed with current piece coords (setup for unmoved pieces, including Flag/Bomb)
+  for (const p of pieces as Piece[]) {
+    positionsByPiece.set(p.id, { row: p.row_idx, col: p.col_idx });
+  }
+  const aliveSet = new Set((pieces as Piece[]).map((p) => p.id));
+  const territoryTimeline: Array<{
+    move_number: number;
+    p1_in_enemy: number;
+    p2_in_enemy: number;
+  }> = [];
+
+  // INVARIANT 3: bidirectional reveal sets
+  const knownBySlot1 = new Set<string>();
+  const knownBySlot2 = new Set<string>();
+  const infoEdgeP1: number[] = [];
+  const infoEdgeP2: number[] = [];
+
+  function recordDeath(pieceId: string, moveNumber: number): void {
+    const ps = pieceStats.get(pieceId);
+    if (ps && ps.death_move === null) ps.death_move = moveNumber;
+    aliveSet.delete(pieceId);
+  }
+
+  function bumpKillChain(winnerSlot: 1 | 2, moveNumber: number): void {
+    const loserSlot = (winnerSlot === 1 ? 2 : 1) as 1 | 2;
+    const kc = killChains[winnerSlot];
+    kc.current++;
+    if (kc.current === 1) kc.curStart = moveNumber;
+    if (kc.current > kc.best) {
+      kc.best = kc.current;
+      kc.bestStart = kc.curStart;
+      kc.bestEnd = moveNumber;
+    }
+    killChains[loserSlot].current = 0;
+  }
+
+  function applyCombatDeaths(m: Move): void {
+    if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+      recordDeath(m.defender_piece_id, m.move_number);
+    } else if (m.outcome === "DEFENDER_WINS") {
+      recordDeath(m.piece_id, m.move_number);
+    } else if (m.outcome === "TIE") {
+      recordDeath(m.piece_id, m.move_number);
+      if (m.defender_piece_id) recordDeath(m.defender_piece_id, m.move_number);
+    }
+  }
+
+  for (const m of moves as Move[]) {
+    const ps = pieceStats.get(m.piece_id);
+    if (ps) {
+      ps.moves_made++;
+      ps.distance += Math.abs(m.to_row - m.from_row) + Math.abs(m.to_col - m.from_col);
+      if (ps.first_move === null) ps.first_move = m.move_number;
+    }
+
+    positionsByPiece.set(m.piece_id, { row: m.to_row, col: m.to_col });
+
+    if (m.move_type === "attack" && m.outcome) {
+      if (!firstCasualty) {
+        if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+          const dp = pieceById.get(m.defender_piece_id);
+          if (dp) {
+            firstCasualty = {
+              rank: dp.rank,
+              player_slot: dp.player_slot,
+              move_number: m.move_number,
+              killed_by_rank: m.attacker_rank ?? "?",
+            };
+          }
+        } else if (m.outcome === "DEFENDER_WINS") {
+          const ap = pieceById.get(m.piece_id);
+          if (ap) {
+            firstCasualty = {
+              rank: ap.rank,
+              player_slot: ap.player_slot,
+              move_number: m.move_number,
+              killed_by_rank: m.defender_rank ?? "?",
+            };
+          }
+        } else if (m.outcome === "TIE") {
+          const ap = pieceById.get(m.piece_id);
+          if (ap) {
+            firstCasualty = {
+              rank: ap.rank,
+              player_slot: ap.player_slot,
+              move_number: m.move_number,
+              killed_by_rank: m.defender_rank ?? "?",
+            };
+          }
+        }
+      }
+
+      applyCombatDeaths(m);
+
+      if (m.outcome === "ATTACKER_WINS") {
+        if (isCleanKill(m)) {
+          const aps = pieceStats.get(m.piece_id);
+          if (aps) aps.kills++;
+        }
+        bumpKillChain(m.player_slot as 1 | 2, m.move_number);
+      } else if (m.outcome === "DEFENDER_WINS") {
+        if (isCleanKill(m) && m.defender_piece_id) {
+          const dps = pieceStats.get(m.defender_piece_id);
+          if (dps) dps.kills++;
+        }
+        const defSlot = (m.player_slot === 1 ? 2 : 1) as 1 | 2;
+        bumpKillChain(defSlot, m.move_number);
+      } else {
+        killChains[1].current = 0;
+        killChains[2].current = 0;
+      }
+
+      // Info Edge — attacker learns defender; defender learns attacker
+      if (m.player_slot === 1) {
+        if (m.defender_piece_id) knownBySlot1.add(m.defender_piece_id);
+        knownBySlot2.add(m.piece_id);
+      } else {
+        if (m.defender_piece_id) knownBySlot2.add(m.defender_piece_id);
+        knownBySlot1.add(m.piece_id);
+      }
+      infoEdgeP1.push(knownBySlot1.size - knownBySlot2.size);
+      infoEdgeP2.push(knownBySlot2.size - knownBySlot1.size);
+    }
+
+    // Territory sample AFTER combat deaths (INVARIANT 4)
+    if (m.move_number % 20 === 0 || m.move_number === totalMoves) {
+      let p1InEnemy = 0;
+      let p2InEnemy = 0;
+      for (const [pid, pos] of positionsByPiece) {
+        if (!aliveSet.has(pid)) continue;
+        const piece = pieceById.get(pid);
+        if (!piece) continue;
+        if (piece.player_slot === 1 && pos.row <= 4) p1InEnemy++;
+        if (piece.player_slot === 2 && pos.row >= 5) p2InEnemy++;
+      }
+      territoryTimeline.push({
+        move_number: m.move_number,
+        p1_in_enemy: p1InEnemy,
+        p2_in_enemy: p2InEnemy,
+      });
+    }
+  }
+
+  // Flag proximity: Flag never moves — use pieces.row_idx / col_idx directly
+  const flagProximity: Record<1 | 2, number | null> = { 1: null, 2: null };
+  for (const s of [1, 2] as const) {
+    const flag = (pieces as Piece[]).find((p) => p.player_slot === s && p.rank === R.FLAG);
+    if (!flag) continue;
+    for (const m of moves as Move[]) {
+      if (m.player_slot === s) continue;
+      const dist =
+        Math.abs(m.to_row - flag.row_idx) + Math.abs(m.to_col - flag.col_idx);
+      if (flagProximity[s] === null || dist < (flagProximity[s] as number)) {
+        flagProximity[s] = dist;
+      }
+    }
+  }
+
+  // Think times (cap 10 min; skip non-positive / overnight gaps)
+  const p1Think: number[] = [];
+  const p2Think: number[] = [];
+  for (let i = 1; i < moves.length; i++) {
+    const prev = moves[i - 1] as Move;
+    const curr = moves[i] as Move;
+    if (!prev.created_at || !curr.created_at) continue;
+    const diff =
+      new Date(curr.created_at).getTime() - new Date(prev.created_at).getTime();
+    if (diff <= 0 || diff >= 600_000) continue;
+    if (curr.player_slot === 1) p1Think.push(diff);
+    else p2Think.push(diff);
+  }
+
+  const thinkTimes =
+    p1Think.length > 0 || p2Think.length > 0
+      ? {
+          p1_avg_ms: p1Think.length
+            ? Math.round(p1Think.reduce((a, b) => a + b, 0) / p1Think.length)
+            : null,
+          p2_avg_ms: p2Think.length
+            ? Math.round(p2Think.reduce((a, b) => a + b, 0) / p2Think.length)
+            : null,
+          p1_max_ms: p1Think.length ? Math.max(...p1Think) : null,
+          p2_max_ms: p2Think.length ? Math.max(...p2Think) : null,
+        }
+      : null;
+
+  const pieceCareers = (pieces as Piece[]).map((p) => {
+    const s = pieceStats.get(p.id)!;
+    return {
+      piece_id: p.id,
+      player_slot: p.player_slot,
+      rank: p.rank,
+      moves_made: s.moves_made,
+      kills: s.kills,
+      distance: s.distance,
+      first_move: s.first_move,
+      death_move: s.death_move,
+      alive: p.alive,
+    };
+  });
+
+  const mvpCandidate = [...pieceCareers].sort((a, b) => b.kills - a.kills)[0] ?? null;
+  const turningPoint = findTurningPoint(curveP1, combatMoves);
+
+  const story: Record<string, unknown> = {
+    turning_point: turningPoint,
+    mvp:
+      mvpCandidate && mvpCandidate.kills > 0
+        ? {
+            piece_id: mvpCandidate.piece_id,
+            player_slot: mvpCandidate.player_slot,
+            rank: mvpCandidate.rank,
+            kills: mvpCandidate.kills,
+          }
+        : null,
+    piece_careers: pieceCareers,
+    kill_chains: {
+      slot1: {
+        length: killChains[1].best,
+        start_move: killChains[1].bestStart,
+        end_move: killChains[1].bestEnd,
+      },
+      slot2: {
+        length: killChains[2].best,
+        start_move: killChains[2].bestStart,
+        end_move: killChains[2].bestEnd,
+      },
+    },
+    first_casualty: firstCasualty,
+    flag_proximity: { slot1: flagProximity[1], slot2: flagProximity[2] },
+    territory_timeline: territoryTimeline,
+    think_times: thinkTimes,
+    info_edge_curve: { slot1: infoEdgeP1, slot2: infoEdgeP2 },
+    // phase_stats filled after per-slot loop (Task 3–4)
+  };
 
   for (const slot of [1, 2] as const) {
     const playerId = slot === 1 ? game.player1_id : game.player2_id;
@@ -751,6 +1201,7 @@ Deno.serve(async (req) => {
       game_id,
       material_curve_p1: curveP1,
       material_curve_p2: curveP2,
+      story,
     },
     { onConflict: "game_id" },
   );
