@@ -1066,6 +1066,22 @@ button:active:not(:disabled) {
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
+.scouting-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.scouting-tag {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .stat-item, .achievement-item {
   position: relative;
   z-index: auto;

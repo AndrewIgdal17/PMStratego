@@ -78,6 +78,26 @@ function formatInfoArchetype(key) {
   return map[key] ?? key;
 }
 
+function memoryPctDisplay(hits, misses) {
+  const h = Number(hits ?? 0);
+  const m = Number(misses ?? 0);
+  const total = h + m;
+  if (total <= 0) return "—";
+  return `${((h / total) * 100).toFixed(0)}%`;
+}
+
+function renderScoutingTags(scouting) {
+  const tags = scouting?.tags ?? [];
+  if (!tags.length) return "";
+  const tagLabels = {
+    steel_trap: "Steel Trap 🧠",
+    bomb_amnesia: "Bomb Amnesia 💣❌",
+    loses_track: "Loses Track 🔀",
+    short_fuse: "Short Fuse ⚡",
+  };
+  return `<div class="scouting-tags">${tags.map((tag) => `<span class="scouting-tag">${tagLabels[tag] ?? tag}</span>`).join("")}</div>`;
+}
+
 function renderHeader(player, stats) {
   const el = document.getElementById("profile-header");
   const totalGames = stats ? (stats.wins + stats.losses + stats.draws) : 0;
@@ -164,6 +184,22 @@ function renderStats(stats) {
           : "—",
         "When enemies attack your still/never-moved pieces, how often does the still piece win?"],
     ]},
+    { title: "Memory & Deduction", items: [
+      ["Memory Score",
+        memoryPctDisplay(stats.memory_hits_w, stats.memory_misses_w),
+        "When you re-engage a piece you previously saw in combat, how often do you play as if you remember what it is?"],
+      ["Bomb Retention",
+        memoryPctDisplay(stats.memory_bomb_hits, stats.memory_bomb_misses),
+        "When attacking a piece you previously learned was a Bomb, how often do you send a Miner?"],
+      ["Position Tracking",
+        memoryPctDisplay(stats.memory_track_hits, stats.memory_track_misses),
+        "When a revealed piece moves to a new position, how often do you still find it?"],
+      ["Memory Half-Life",
+        stats.memory_scouting?.half_life_moves != null
+          ? `~${stats.memory_scouting.half_life_moves} moves`
+          : "—",
+        "Estimated moves after a reveal before your accuracy drops to 50% — lower = faster forgetting"],
+    ], extraAfter: renderScoutingTags(stats.memory_scouting ?? {}) },
     { title: "Endgame & Clutch", items: [
       ["Marathon Win Rate", stats.marathon_games > 0 ? `${((stats.marathon_wins / stats.marathon_games) * 100).toFixed(0)}%` : "—", "Win rate in long games (60+ total moves)"],
       ["Win by Flag %", stats.wins > 0 ? `${((stats.wins_by_flag / stats.wins) * 100).toFixed(0)}%` : "—", "% of your wins by capturing the enemy Flag (vs. resignation or no-moves-left)"],
@@ -215,6 +251,7 @@ function renderStats(stats) {
           </div>
         `).join("")}
       </div>
+      ${s.extraAfter ?? ""}
     </details>
   `).join("");
 }
