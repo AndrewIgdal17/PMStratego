@@ -130,6 +130,34 @@ function renderStats(stats) {
       ["Most Captures (1 game)", stats.most_captures ?? "—", "Most enemy pieces you killed in a single game"],
       ["Marshal Showdowns", `${stats.marshal_showdown_wins}/${stats.marshal_showdowns}`, "Marshal vs Marshal direct combat — your wins out of total showdowns"],
     ]},
+    { title: "Board Geography", items: [
+      ["Flank Preference", (stats.flank_left_moves + stats.flank_right_moves) > 0
+        ? `${((stats.flank_left_moves / (stats.flank_left_moves + stats.flank_right_moves)) * 100).toFixed(0)}% Left`
+        : "—",
+        "Do you favor the left side (cols 0–4) or right side (cols 5–9) of the board?"],
+      ["Lake Corridor", stats.total_moves > 0
+        ? `${((stats.lake_corridor_moves / stats.total_moves) * 100).toFixed(0)}%`
+        : "—",
+        "What % of your moves pass through the center corridor (cols 4–5) between the lakes?"],
+      ["Defense Depth", stats.defense_depth_count > 0
+        ? `${(Number(stats.defense_depth_sum) / stats.defense_depth_count).toFixed(1)} rows`
+        : "—",
+        "Average distance from your back row when you initiate combat — low = defensive, high = deep strikes"],
+    ]},
+    { title: "Tempo & Rhythm", items: [
+      ["Combat Cadence", stats.combat_cadence_count > 0
+        ? `${Math.round(stats.combat_cadence_sum / stats.combat_cadence_count)} moves apart`
+        : "—",
+        "Average moves between your consecutive attacks — low = rapid pressure, high = patient/positional"],
+      ["Opening Speed", stats.opening_speed_games > 0
+        ? `Move ${Math.round(stats.opening_speed_sum / stats.opening_speed_games)}`
+        : "—",
+        "Average move number of your first attack — early = aggressive opener, late = developer"],
+      ["Endgame Acceleration", (stats.endgame_accel_early + stats.endgame_accel_late) > 0
+        ? `${((stats.endgame_accel_late / (stats.endgame_accel_early + stats.endgame_accel_late)) * 100).toFixed(0)}% in final quarter`
+        : "—",
+        "What % of your attacks happen in the last 25% of the game? High = you close fast"],
+    ]},
   ];
 
   el.innerHTML = sections.map((s) => `
