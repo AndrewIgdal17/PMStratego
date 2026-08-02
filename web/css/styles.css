@@ -983,6 +983,10 @@ button:active:not(:disabled) {
 .rating-badge { font-weight: bold; }
 .rating-badge.provisional { opacity: 0.7; font-style: italic; }
 .archetype-badge { background: rgba(100,200,150,0.15); border: 1px solid rgba(100,200,150,0.4); padding: 0.15rem 0.6rem; border-radius: 12px; text-transform: capitalize; font-size: 0.8rem; cursor: help; position: relative; }
+.info-archetype-badge {
+  background: rgba(120, 160, 220, 0.15);
+  border-color: rgba(120, 160, 220, 0.45);
+}
 
 .h2h-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 0.75rem 1rem; margin: 0.75rem 0; display: inline-block; }
 .h2h-title { font-size: 0.8rem; opacity: 0.7; margin-bottom: 0.3rem; }

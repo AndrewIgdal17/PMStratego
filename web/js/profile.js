@@ -67,6 +67,17 @@ async function renderHeadToHead(profilePlayerId, username) {
   el.after(card);
 }
 
+function formatInfoArchetype(key) {
+  const map = {
+    bluffer: "Hyperactive Bluffer",
+    trapper: "Patient Trapper",
+    converter: "Snap Converter",
+    denier: "Fog Denier",
+    investor: "Recon Investor",
+  };
+  return map[key] ?? key;
+}
+
 function renderHeader(player, stats) {
   const el = document.getElementById("profile-header");
   const totalGames = stats ? (stats.wins + stats.losses + stats.draws) : 0;
@@ -76,6 +87,7 @@ function renderHeader(player, stats) {
     <div class="profile-meta">
       <span class="rating-badge ${player.rating_provisional ? "provisional" : ""}">${player.rating} ${player.rating_provisional ? "(Provisional)" : ""}</span>
       ${stats?.archetype ? `<span class="archetype-badge" data-tooltip="Playstyle archetype — recalculated every 5 games based on your stat pattern">${stats.archetype.replace("_", " ")}</span>` : ""}
+      ${stats?.info_archetype ? `<span class="archetype-badge info-archetype-badge" data-tooltip="Information Warfare archetype — how you hide, reveal, and convert knowledge">${formatInfoArchetype(stats.info_archetype)}</span>` : ""}
       <span>${player.games_played} games</span>
       <span>${winRate}% win rate</span>
       <span>Member since ${new Date(player.created_at).toLocaleDateString()}</span>
@@ -119,6 +131,38 @@ function renderStats(stats) {
       ["Trade Efficiency", stats.trade_efficiency_count > 0 ? `${(stats.trade_efficiency_sum / stats.trade_efficiency_count).toFixed(1)}` : "—", "Net rank-value gained per combat (positive = trading up on average)"],
       ["Avenge Rate", stats.avenge_opportunities > 0 ? `${((stats.avenge_kills / stats.avenge_opportunities) * 100).toFixed(0)}%` : "—", "How often you track down and kill a piece that previously killed one of yours"],
       ["Comeback Record", stats.max_comeback_deficit > 0 ? `${stats.max_comeback_deficit} pts` : "—", "Largest rank-value deficit you overcame in a winning game"],
+    ]},
+    { title: "Information Warfare", items: [
+      ["Stillness Ratio",
+        stats.stillness_movable_total > 0
+          ? `${((stats.stillness_never_moved / stats.stillness_movable_total) * 100).toFixed(0)}%`
+          : "—",
+        "What % of your movable pieces never move in a game — high suggests fake-bomb trapping"],
+      ["Info Exchange Rate",
+        stats.info_exchange_games > 0
+          ? `${(stats.info_exchange_ratio_sum / stats.info_exchange_games).toFixed(2)}x`
+          : "—",
+        "For every piece of yours revealed, how many enemy pieces did you learn? >1 = you're winning the info war"],
+      ["Deduction Latency",
+        stats.deduction_latency_count > 0
+          ? `${Math.round(stats.deduction_latency_sum / stats.deduction_latency_count)} moves`
+          : "—",
+        "How quickly you send the correct counter after learning an enemy piece's rank"],
+      ["Bluff Bait Rate",
+        stats.bluff_bait_events > 0
+          ? `${((stats.bluff_bait_bitten / stats.bluff_bait_events) * 100).toFixed(0)}%`
+          : "—",
+        "When you push weak pieces deep as bluffs, how often does the enemy bite and attack them?"],
+      ["Reveal Half-Life",
+        stats.reveal_half_life_games > 0
+          ? `${((stats.reveal_half_life_sum / stats.reveal_half_life_games) * 100).toFixed(0)}% of game`
+          : "—",
+        "How far into the game before half your army is identified by the enemy — higher = you stay foggy longer"],
+      ["Ambush Yield",
+        stats.ambush_defenses > 0
+          ? `${((stats.ambush_wins / stats.ambush_defenses) * 100).toFixed(0)}%`
+          : "—",
+        "When enemies attack your still/never-moved pieces, how often does the still piece win?"],
     ]},
     { title: "Endgame & Clutch", items: [
       ["Marathon Win Rate", stats.marathon_games > 0 ? `${((stats.marathon_wins / stats.marathon_games) * 100).toFixed(0)}%` : "—", "Win rate in long games (60+ total moves)"],
