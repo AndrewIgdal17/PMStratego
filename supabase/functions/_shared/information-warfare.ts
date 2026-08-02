@@ -737,3 +737,398 @@ export function topMemoryMoments(events: MemoryEvent[], limit = 5): MemoryEvent[
     .sort((a, b) => b.weight - a.weight || b.move_number - a.move_number)
     .slice(0, limit);
 }
+
+export interface IWGameResult {
+  // Legacy reveal/avenge (preserve existing player_stats columns)
+  revealAttacks: number;
+  revealWins: number;
+  revealTotal: number;
+  revealThenKill: number;
+  avengeKills: number;
+  avengeOpportunities: number;
+  scoutDistance: number;
+  spyFirstCombatMove: number | null;
+
+  // Big 6 + controlled deeper
+  stillnessNeverMoved: number;
+  stillnessMovableTotal: number;
+  infoExchangeRatio: number;
+  deductionLatencySum: number;
+  deductionLatencyCount: number;
+  bluffBaitEvents: number;
+  bluffBaitBitten: number;
+  revealHalfLife: number | null;
+  ambushDefenses: number;
+  ambushWins: number;
+  controlledExposureAttacks: number;
+  controlledExposureBurned: number;
+  silentMajority: number;
+  motionEntropy: number;
+  myCaptures: number;
+
+  memory: MemoryGameAccum;
+  infoEdgeCurve: number[];
+  phaseEvents: PhaseEvent[];
+}
+
+export type PhaseEvent = {
+  move_number: number;
+  kind: "attack" | "memory" | "avenge";
+  is_my_attack: boolean;
+  reveal_attack: boolean;
+  reveal_win: boolean;
+  trade_delta: number;
+  attack_win: boolean;
+  memory_hit: boolean | null;
+  memory_w: number;
+  my_ledger_size: number;
+  material_diff_before: number;
+  captures_before: number;
+  avenge_opportunity: boolean;
+  avenge_kill: boolean;
+  deduction_latency: number | null;
+};
+
+/** Shannon entropy of my move distribution, normalized by ln(n_moved_pieces). */
+export function computeMotionEntropy(moveCountByPiece: Map<string, number>): number {
+  const movedCounts: number[] = [];
+  let totalMyMoves = 0;
+  for (const count of moveCountByPiece.values()) {
+    if (count > 0) {
+      movedCounts.push(count);
+      totalMyMoves += count;
+    }
+  }
+  if (totalMyMoves === 0 || movedCounts.length <= 1) return 0;
+  let h = 0;
+  for (const c of movedCounts) {
+    const p = c / totalMyMoves;
+    h -= p * Math.log(p);
+  }
+  return h / Math.log(movedCounts.length);
+}
+
+export function runInformationWarfarePass(
+  slot: number,
+  moves: MoveLike[],
+  pieces: PieceLike[],
+  pieceById: Map<string, PieceLike>,
+  totalMoves: number,
+): IWGameResult {
+  const myLedger = createLedger();
+  const theirLedger = createLedger();
+  const myVacated = new Map<string, VacatedSquare>();
+  const board = buildInitialBoard(pieces, moves);
+
+  const myPieces = pieces.filter((p) => p.player_slot === slot);
+  const myMovable = myPieces.filter((p) => movableRank(p.rank));
+  const myMovableIds = new Set(myMovable.map((p) => p.id));
+  const myMovableTotal = myMovable.length;
+  const halfThreshold = Math.ceil(myMovableTotal * 0.5);
+
+  const moveCountByPiece = new Map<string, number>();
+  for (const p of myPieces) moveCountByPiece.set(p.id, 0);
+
+  const bluffOpen = new Map<string, number>();
+  const bluffBitten = new Set<string>();
+  const bluffEventIds = new Set<string>();
+
+  let revealAttacks = 0;
+  let revealWins = 0;
+  let revealTotal = 0;
+  let revealThenKill = 0;
+  let avengeKills = 0;
+  let avengeOpportunities = 0;
+  let scoutDistance = 0;
+  let spyFirstCombatMove: number | null = null;
+
+  let deductionLatencySum = 0;
+  let deductionLatencyCount = 0;
+  let ambushDefenses = 0;
+  let ambushWins = 0;
+  let controlledExposureAttacks = 0;
+  let controlledExposureBurned = 0;
+  let revealHalfLifeMove: number | null = null;
+
+  const memory = emptyMemoryAccum();
+  const infoEdgeCurve: number[] = [];
+  const phaseEvents: PhaseEvent[] = [];
+  const firstRevealedByMe = new Set<string>();
+  const killedByEnemy = new Map<string, string[]>();
+
+  let materialDiff = 0;
+  let myCaptures = 0;
+
+  for (const m of moves) {
+    const isMyAttack = m.player_slot === slot && m.move_type === "attack";
+    const isEnemyAttack = m.player_slot !== slot && m.move_type === "attack";
+    const isMyMove = m.player_slot === slot;
+
+    const legal = isMyMove ? listLegalMoves(board, slot, pieceById) : [];
+
+    if (isMyMove) {
+      const piece = pieceById.get(m.piece_id);
+      if (piece?.rank === "9") {
+        scoutDistance += Math.abs(m.to_row - m.from_row) + Math.abs(m.to_col - m.from_col);
+      }
+    }
+
+    if (spyFirstCombatMove === null && m.move_type === "attack") {
+      if (isMyAttack && m.attacker_rank === "10") spyFirstCombatMove = m.move_number;
+      else if (isEnemyAttack && m.defender_piece_id) {
+        const def = pieceById.get(m.defender_piece_id);
+        if (def?.player_slot === slot && def.rank === "10") {
+          spyFirstCombatMove = m.move_number;
+        }
+      }
+    }
+
+    let memTests: MemoryTestResult[] = [];
+    if (isMyAttack) {
+      memTests = emitMemoryTestsForAttack(
+        m, slot, myLedger, myVacated, legal, pieceById,
+      );
+      accumulateMemoryTests(memory, memTests);
+    }
+
+    const materialBefore = materialDiff;
+    const capturesBefore = myCaptures;
+    const myLedgerSizeBefore = myLedger.size;
+
+    let tradeDelta = 0;
+    let attackWin = false;
+    let revealAttack = false;
+    let revealWin = false;
+    let avengeOpp = false;
+    let avengeKill = false;
+    let deductionLat: number | null = null;
+
+    if (m.move_type === "attack" && m.outcome && m.defender_piece_id) {
+      const aVal = RANK_VALUE_IW[m.attacker_rank ?? ""] ?? 0;
+      const dVal = RANK_VALUE_IW[m.defender_rank ?? ""] ?? 0;
+
+      if (isMyAttack) {
+        const wasKnown = myLedger.has(m.defender_piece_id);
+        if (!wasKnown) {
+          revealAttacks++;
+          revealAttack = true;
+          if (m.outcome === "ATTACKER_WINS") {
+            revealWins++;
+            revealWin = true;
+          }
+          firstRevealedByMe.add(m.defender_piece_id);
+          revealTotal++;
+        } else {
+          const known = myLedger.get(m.defender_piece_id)!;
+          if (
+            m.attacker_rank &&
+            isCorrectCounter(m.attacker_rank, known.rank) &&
+            (m.outcome === "ATTACKER_WINS" ||
+              (known.rank === "BOMB" && m.outcome === "ATTACKER_WINS"))
+          ) {
+            const lat = m.move_number - known.revealed_at;
+            deductionLatencySum += lat;
+            deductionLatencyCount++;
+            deductionLat = lat;
+          }
+        }
+
+        controlledExposureAttacks++;
+        if (theirLedger.has(m.piece_id)) controlledExposureBurned++;
+
+        if (m.outcome === "ATTACKER_WINS") {
+          tradeDelta += dVal;
+          attackWin = true;
+          myCaptures++;
+          if (killedByEnemy.has(m.defender_piece_id)) {
+            avengeKills++;
+            avengeKill = true;
+          }
+        } else if (m.outcome === "DEFENDER_WINS") {
+          tradeDelta -= aVal;
+        } else if (m.outcome === "TIE") {
+          tradeDelta -= aVal;
+        }
+      } else if (isEnemyAttack) {
+        if (!firstRevealedByMe.has(m.piece_id)) {
+          firstRevealedByMe.add(m.piece_id);
+          revealTotal++;
+        }
+
+        if (m.defender_piece_id) {
+          const def = pieceById.get(m.defender_piece_id);
+          if (def?.player_slot === slot) {
+            const prior = moveCountByPiece.get(m.defender_piece_id) ?? 0;
+            if (prior === 0) {
+              ambushDefenses++;
+              if (m.outcome === "DEFENDER_WINS") ambushWins++;
+            }
+          }
+        }
+
+        if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+          const def = pieceById.get(m.defender_piece_id);
+          if (def?.player_slot === slot) {
+            if (!killedByEnemy.has(m.piece_id)) killedByEnemy.set(m.piece_id, []);
+            killedByEnemy.get(m.piece_id)!.push(m.defender_piece_id);
+            avengeOpportunities++;
+            avengeOpp = true;
+            tradeDelta -= dVal;
+          }
+        } else if (m.outcome === "DEFENDER_WINS") {
+          tradeDelta += aVal;
+          myCaptures++;
+          attackWin = true;
+          if (killedByEnemy.has(m.piece_id)) {
+            avengeKills++;
+            avengeKill = true;
+          }
+        } else if (m.outcome === "TIE") {
+          const def = pieceById.get(m.defender_piece_id);
+          if (def?.player_slot === slot) tradeDelta -= dVal;
+          tradeDelta += aVal;
+        }
+      }
+
+      if (isEnemyAttack && m.defender_piece_id && bluffOpen.has(m.defender_piece_id)) {
+        const opened = bluffOpen.get(m.defender_piece_id)!;
+        if (m.move_number - opened <= 5) {
+          bluffBitten.add(m.defender_piece_id);
+        }
+      }
+    }
+
+    if (isMyMove && moveCountByPiece.has(m.piece_id)) {
+      moveCountByPiece.set(m.piece_id, (moveCountByPiece.get(m.piece_id) ?? 0) + 1);
+    }
+
+    if (isMyMove) {
+      const piece = pieceById.get(m.piece_id);
+      if (
+        piece &&
+        isWeakBluffRank(piece.rank) &&
+        enemyHalfRow(slot, m.to_row) &&
+        !theirLedger.has(m.piece_id) &&
+        !bluffEventIds.has(m.piece_id)
+      ) {
+        bluffEventIds.add(m.piece_id);
+        bluffOpen.set(m.piece_id, m.move_number);
+      }
+    }
+
+    applyLedgerUpdatesFromMove(m, slot, myLedger, theirLedger, myVacated, pieceById);
+
+    if (revealHalfLifeMove === null && myMovableTotal > 0) {
+      let knownMovable = 0;
+      for (const id of myMovableIds) {
+        if (theirLedger.has(id)) knownMovable++;
+      }
+      if (knownMovable >= halfThreshold) {
+        revealHalfLifeMove = m.move_number;
+      }
+    }
+
+    if (m.move_type === "attack" && m.outcome) {
+      infoEdgeCurve.push(myLedger.size - theirLedger.size);
+    }
+
+    if (m.move_type === "attack" && m.outcome) {
+      materialDiff += tradeDelta;
+    }
+
+    if (m.move_type === "attack" && m.outcome) {
+      phaseEvents.push({
+        move_number: m.move_number,
+        kind: "attack",
+        is_my_attack: isMyAttack,
+        reveal_attack: revealAttack,
+        reveal_win: revealWin,
+        trade_delta: tradeDelta,
+        attack_win: attackWin,
+        memory_hit: null,
+        memory_w: 0,
+        my_ledger_size: myLedgerSizeBefore,
+        material_diff_before: materialBefore,
+        captures_before: capturesBefore,
+        avenge_opportunity: avengeOpp,
+        avenge_kill: avengeKill,
+        deduction_latency: deductionLat,
+      });
+    }
+    for (const t of memTests) {
+      phaseEvents.push({
+        move_number: m.move_number,
+        kind: "memory",
+        is_my_attack: true,
+        reveal_attack: false,
+        reveal_win: false,
+        trade_delta: 0,
+        attack_win: false,
+        memory_hit: t.hit,
+        memory_w: t.weight,
+        my_ledger_size: myLedgerSizeBefore,
+        material_diff_before: materialBefore,
+        captures_before: capturesBefore,
+        avenge_opportunity: false,
+        avenge_kill: false,
+        deduction_latency: null,
+      });
+    }
+
+    applyMoveToBoard(board, m);
+  }
+
+  for (const enemyId of firstRevealedByMe) {
+    const ep = pieceById.get(enemyId);
+    if (ep && !ep.alive) revealThenKill++;
+  }
+
+  let neverMoved = 0;
+  for (const id of myMovableIds) {
+    if ((moveCountByPiece.get(id) ?? 0) === 0) neverMoved++;
+  }
+
+  let unrevealedMovable = 0;
+  for (const id of myMovableIds) {
+    if (!theirLedger.has(id)) unrevealedMovable++;
+  }
+  const silentMajority = myMovableTotal > 0 ? unrevealedMovable / myMovableTotal : 0;
+
+  const infoExchangeRatio = myLedger.size / Math.max(theirLedger.size, 1);
+
+  const revealHalfLife =
+    revealHalfLifeMove !== null && totalMoves > 0
+      ? revealHalfLifeMove / totalMoves
+      : null;
+
+  const motionEntropy = computeMotionEntropy(moveCountByPiece);
+
+  return {
+    revealAttacks,
+    revealWins,
+    revealTotal,
+    revealThenKill,
+    avengeKills,
+    avengeOpportunities,
+    scoutDistance,
+    spyFirstCombatMove,
+    stillnessNeverMoved: neverMoved,
+    stillnessMovableTotal: myMovableTotal,
+    infoExchangeRatio,
+    deductionLatencySum,
+    deductionLatencyCount,
+    bluffBaitEvents: bluffEventIds.size,
+    bluffBaitBitten: bluffBitten.size,
+    revealHalfLife,
+    ambushDefenses,
+    ambushWins,
+    controlledExposureAttacks,
+    controlledExposureBurned,
+    silentMajority,
+    motionEntropy,
+    myCaptures,
+    memory,
+    infoEdgeCurve,
+    phaseEvents,
+  };
+}

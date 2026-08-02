@@ -2,20 +2,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
-  applyLedgerUpdatesFromMove,
-  applyMoveToBoard,
-  buildInitialBoard,
-  createLedger,
-  accumulateMemoryTests,
-  emitMemoryTestsForAttack,
-  emptyMemoryAccum,
-  listLegalMoves,
+  runInformationWarfarePass,
   topMemoryMoments,
   type MemoryEvent,
-  type KnowledgeLedger,
   type MoveLike,
   type PieceLike,
-  type VacatedSquare,
 } from "../_shared/information-warfare.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -741,108 +732,25 @@ Deno.serve(async (req) => {
       (m.player_slot !== slot && m.outcome === "DEFENDER_WINS")
     ).length;
 
-    // === REVEAL-SET REPLAY (bidirectional knowledge ledgers) ===
-    const myLedger: KnowledgeLedger = createLedger();
-    const theirLedger: KnowledgeLedger = createLedger();
-    const myVacated = new Map<string, VacatedSquare>();
-    const memoryAccum = emptyMemoryAccum();
-    const board = buildInitialBoard(pieces as PieceLike[], moves as MoveLike[]);
-    /** Legacy alias: enemy piece IDs in myLedger (kept for downstream compatibility). */
-    const revealedEnemyIds = new Set<string>();
+    // === INFORMATION WARFARE PASS (ledgers + Big 6 + memory) ===
+    const iw = runInformationWarfarePass(
+      slot,
+      moves as MoveLike[],
+      pieces as PieceLike[],
+      pieceByIdIw,
+      totalMoves,
+    );
 
-    let revealAttacks = 0;
-    let revealWins = 0;
-    let revealThenKill = 0;
-    let revealTotal = 0;
-    let avengeKills = 0;
-    let avengeOpportunities = 0;
-    let spyFirstCombatMove: number | null = null;
-    let scoutDistance = 0;
+    const revealAttacks = iw.revealAttacks;
+    const revealWins = iw.revealWins;
+    const revealThenKill = iw.revealThenKill;
+    const revealTotal = iw.revealTotal;
+    const avengeKills = iw.avengeKills;
+    const avengeOpportunities = iw.avengeOpportunities;
+    const scoutDistance = iw.scoutDistance;
+    const spyFirstCombatMove = iw.spyFirstCombatMove;
 
-    const killedByEnemy = new Map<string, string[]>();
-    const firstRevealedByMe = new Set<string>();
-
-    for (const m of moves) {
-      const isMyAttack = m.player_slot === slot && m.move_type === "attack";
-      const isEnemyAttack = m.player_slot !== slot && m.move_type === "attack";
-
-      if (m.player_slot === slot) {
-        const piece = pieceById.get(m.piece_id);
-        if (piece?.rank === R.SCOUT) {
-          scoutDistance += Math.abs(m.to_row - m.from_row) + Math.abs(m.to_col - m.from_col);
-        }
-      }
-
-      if (spyFirstCombatMove === null && m.move_type === "attack") {
-        if (m.player_slot === slot && m.attacker_rank === R.SPY) {
-          spyFirstCombatMove = m.move_number;
-        } else if (m.player_slot !== slot && m.defender_piece_id) {
-          const defPiece = pieceById.get(m.defender_piece_id);
-          if (defPiece?.player_slot === slot && defPiece?.rank === R.SPY) {
-            spyFirstCombatMove = m.move_number;
-          }
-        }
-      }
-
-      // Reveal / avenge scoring BEFORE ledger update (uses pre-combat knowledge)
-      if (m.defender_piece_id && m.move_type === "attack" && m.outcome) {
-        if (isMyAttack) {
-          const wasRevealed = myLedger.has(m.defender_piece_id);
-          if (!wasRevealed) {
-            revealAttacks++;
-            if (m.outcome === "ATTACKER_WINS") revealWins++;
-            firstRevealedByMe.add(m.defender_piece_id);
-            revealTotal++;
-          }
-        } else if (isEnemyAttack) {
-          if (!firstRevealedByMe.has(m.piece_id)) {
-            firstRevealedByMe.add(m.piece_id);
-            revealTotal++;
-          }
-
-          if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
-            const defPiece = pieceById.get(m.defender_piece_id);
-            if (defPiece?.player_slot === slot) {
-              if (!killedByEnemy.has(m.piece_id)) killedByEnemy.set(m.piece_id, []);
-              killedByEnemy.get(m.piece_id)!.push(m.defender_piece_id);
-              avengeOpportunities++;
-            }
-          }
-        }
-
-        if (isMyAttack && m.outcome === "ATTACKER_WINS" && killedByEnemy.has(m.defender_piece_id)) {
-          avengeKills++;
-        }
-        if (isEnemyAttack && m.outcome === "DEFENDER_WINS" && killedByEnemy.has(m.piece_id)) {
-          avengeKills++;
-        }
-      }
-
-      // Memory tests BEFORE ledger update (defender must already be in myLedger)
-      if (isMyAttack) {
-        const legal = listLegalMoves(board, slot, pieceByIdIw);
-        const memTests = emitMemoryTestsForAttack(
-          m, slot, myLedger, myVacated, legal, pieceByIdIw,
-        );
-        accumulateMemoryTests(memoryAccum, memTests);
-      }
-
-      applyLedgerUpdatesFromMove(m, slot, myLedger, theirLedger, myVacated, pieceByIdIw);
-      applyMoveToBoard(board, m);
-
-      // Sync legacy reveal set from myLedger (enemy pieces only)
-      for (const [id] of myLedger) {
-        const p = pieceById.get(id);
-        if (p && p.player_slot !== slot) revealedEnemyIds.add(id);
-      }
-    }
-
-    memoryEventsBySlot[slot] = memoryAccum.events;
-
-    for (const enemyId of firstRevealedByMe) {
-      const ep = pieceById.get(enemyId);
-      if (ep && !ep.alive) revealThenKill++;
-    }
+    memoryEventsBySlot[slot] = iw.memory.events;
 
     // === TRADE EFFICIENCY ===
     let tradeValue = 0;
@@ -1240,6 +1148,30 @@ Deno.serve(async (req) => {
         think_time_sum_ms: Number(stats.think_time_sum_ms ?? 0) + thinkSumMs,
         think_time_count: (stats.think_time_count ?? 0) + thinkCount,
         phase_career: mergedPhaseCareer,
+        stillness_never_moved: stats.stillness_never_moved + iw.stillnessNeverMoved,
+        stillness_movable_total: stats.stillness_movable_total + iw.stillnessMovableTotal,
+        info_exchange_ratio_sum: Number(stats.info_exchange_ratio_sum ?? 0) + iw.infoExchangeRatio,
+        info_exchange_games: (stats.info_exchange_games ?? 0) + 1,
+        deduction_latency_sum: (stats.deduction_latency_sum ?? 0) + iw.deductionLatencySum,
+        deduction_latency_count: (stats.deduction_latency_count ?? 0) + iw.deductionLatencyCount,
+        bluff_bait_events: (stats.bluff_bait_events ?? 0) + iw.bluffBaitEvents,
+        bluff_bait_bitten: (stats.bluff_bait_bitten ?? 0) + iw.bluffBaitBitten,
+        reveal_half_life_sum: Number(stats.reveal_half_life_sum ?? 0) +
+          (iw.revealHalfLife !== null ? iw.revealHalfLife : 0),
+        reveal_half_life_games: (stats.reveal_half_life_games ?? 0) +
+          (iw.revealHalfLife !== null ? 1 : 0),
+        ambush_defenses: (stats.ambush_defenses ?? 0) + iw.ambushDefenses,
+        ambush_wins: (stats.ambush_wins ?? 0) + iw.ambushWins,
+        controlled_exposure_attacks:
+          (stats.controlled_exposure_attacks ?? 0) + iw.controlledExposureAttacks,
+        controlled_exposure_burned:
+          (stats.controlled_exposure_burned ?? 0) + iw.controlledExposureBurned,
+        silent_majority_sum: Number(stats.silent_majority_sum ?? 0) + iw.silentMajority,
+        silent_majority_games: (stats.silent_majority_games ?? 0) + 1,
+        silent_majority_wins_sum: Number(stats.silent_majority_wins_sum ?? 0) +
+          (won ? iw.silentMajority : 0),
+        silent_majority_losses_sum: Number(stats.silent_majority_losses_sum ?? 0) +
+          (!won && game.winner_slot != null ? iw.silentMajority : 0),
         updated_at: new Date().toISOString(),
       })
       .eq("player_id", playerId);

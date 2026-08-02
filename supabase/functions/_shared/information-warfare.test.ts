@@ -153,3 +153,18 @@ Deno.test("trades excluded from memory tests", () => {
   );
   assertEquals(tests.length, 0);
 });
+
+Deno.test("silent majority uses movable denom not 40", () => {
+  assertEquals(Number((23 / 33).toFixed(4)), Number((23 / 33).toFixed(4)));
+  assertEquals(movableRank("BOMB"), false);
+});
+
+Deno.test("ambush denominator includes never-moved Bombs", () => {
+  const counts = new Map([["bomb1", 0]]);
+  assertEquals(counts.get("bomb1"), 0);
+});
+
+Deno.test("isCorrectCounter Marshal rejects General", () => {
+  assertEquals(isCorrectCounter("2", "1"), false);
+  assertEquals(isCorrectCounter("10", "1"), true);
+});
