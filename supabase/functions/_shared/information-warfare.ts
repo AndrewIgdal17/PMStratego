@@ -99,6 +99,29 @@ export const ARMY_COMPOSITION_IW: Record<string, number> = {
 };
 
 /**
+ * Compositional Knowledge: given what's been revealed/killed of the enemy
+ * army, how certain can I be about the rank of each remaining unrevealed
+ * enemy piece? All unrevealed pieces share the same set of possible ranks
+ * (the ranks with remaining unaccounted-for slots), so the score is just
+ * 1 / (number of ranks with remaining slots). Fewer possible ranks → higher
+ * certainty. Returns 0 if there are no unaccounted-for slots left (shouldn't
+ * happen in practice, but avoids division by zero).
+ */
+export function computeCompositionalKnowledge(myLedger: KnowledgeLedger): number {
+  const accounted: Record<string, number> = {};
+  for (const e of myLedger.values()) {
+    accounted[e.rank] = (accounted[e.rank] ?? 0) + 1;
+  }
+
+  let possibleRanks = 0;
+  for (const [rank, total] of Object.entries(ARMY_COMPOSITION_IW)) {
+    if (total - (accounted[rank] ?? 0) > 0) possibleRanks++;
+  }
+
+  return possibleRanks > 0 ? 1 / possibleRanks : 0;
+}
+
+/**
  * V1: if exactly one enemy piece is alive+unrevealed AND exactly one
  * composition slot remains unaccounted across all ranks, deduce that piece.
  */
@@ -1027,6 +1050,7 @@ export interface IWGameResult {
   scoutSelfRevealEvents: number;
   memory: MemoryGameAccum;
   infoEdgeCurve: number[];
+  compositionalKnowledgeCurve: number[];
   phaseEvents: PhaseEvent[];
 }
 
@@ -1112,6 +1136,7 @@ export function runInformationWarfarePass(
 
   const memory = emptyMemoryAccum();
   const infoEdgeCurve: number[] = [];
+  const compositionalKnowledgeCurve: number[] = [];
   const phaseEvents: PhaseEvent[] = [];
   const firstRevealedByMe = new Set<string>();
   const killedByEnemy = new Map<string, string[]>();
@@ -1326,6 +1351,8 @@ export function runInformationWarfarePass(
         asymmetricKnowledgeCount(myLedger) -
           asymmetricKnowledgeCount(theirLedger),
       );
+
+      compositionalKnowledgeCurve.push(computeCompositionalKnowledge(myLedger));
     }
 
     if (m.move_type === "attack" && m.outcome) {
@@ -1425,6 +1452,7 @@ export function runInformationWarfarePass(
     scoutSelfRevealEvents,
     memory,
     infoEdgeCurve,
+    compositionalKnowledgeCurve,
     phaseEvents,
   };
 }

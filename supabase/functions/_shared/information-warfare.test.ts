@@ -22,6 +22,7 @@ import {
   computeInfoArchetype,
   mergePhaseCareer,
   emptyPhaseStats,
+  computeCompositionalKnowledge,
   type LegalMove,
   type MoveLike,
   type PieceLike,
@@ -672,5 +673,60 @@ Deno.test("info edge moves +1 when enemy Scout long-moves", () => {
     },
   ];
   const iw = runInformationWarfarePass(1, moves, pieces, pieceById, 3);
-  assertEquals(iw.infoEdgeCurve[iw.infoEdgeCurve.length - 1], 1);
+  assertEquals(iw.infoEdgeCurve[0], 1);
+});
+
+Deno.test("compositional knowledge: 0 accounted for → 1/12 (all ranks possible)", () => {
+  const L = createLedger();
+  assertEquals(computeCompositionalKnowledge(L), 1 / 12);
+});
+
+Deno.test("compositional knowledge: eliminating an entire rank narrows possibilities", () => {
+  const L = createLedger();
+  // Kill both Colonels (rank "3", total 2) — fully accounted for, removed from possible ranks.
+  learnPiece(L, "c1", "3", 0, 0, 1, "combat_as_attacker");
+  markPieceDead(L, "c1");
+  learnPiece(L, "c2", "3", 0, 0, 2, "combat_as_attacker");
+  markPieceDead(L, "c2");
+  assertEquals(computeCompositionalKnowledge(L), 1 / 11);
+});
+
+Deno.test("compositional knowledge: narrowing to a single remaining rank → 1.0", () => {
+  const L = createLedger();
+  const ranks = ["1", "2", "3", "3", "4", "4", "4", "5", "5", "5", "5",
+    "6", "6", "6", "6", "7", "7", "7", "7", "8", "8", "8", "8", "8",
+    "9", "9", "9", "9", "9", "9", "9", "9", "10",
+    "BOMB", "BOMB", "BOMB", "BOMB", "BOMB", "BOMB"];
+  ranks.forEach((r, i) => {
+    learnPiece(L, `known${i}`, r, 0, 0, 1, "combat_as_attacker");
+    markPieceDead(L, `known${i}`);
+  });
+  // Only FLAG (1 slot) remains unaccounted for.
+  assertEquals(computeCompositionalKnowledge(L), 1);
+});
+
+Deno.test("compositional knowledge curve rises after eliminating a full rank", () => {
+  const pieces: PieceLike[] = [
+    { id: "me", player_slot: 1, rank: "5", alive: true, row_idx: 6, col_idx: 0 },
+    { id: "me2", player_slot: 1, rank: "5", alive: true, row_idx: 6, col_idx: 1 },
+    { id: "c1", player_slot: 2, rank: "3", alive: true, row_idx: 3, col_idx: 0 },
+    { id: "c2", player_slot: 2, rank: "3", alive: true, row_idx: 3, col_idx: 1 },
+  ];
+  const pieceById = new Map(pieces.map((p) => [p.id, p]));
+  const moves: MoveLike[] = [
+    {
+      piece_id: "me", player_slot: 1, from_row: 6, from_col: 0, to_row: 3, to_col: 0,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "5",
+      defender_rank: "3", defender_piece_id: "c1", move_number: 1,
+    },
+    {
+      piece_id: "me2", player_slot: 1, from_row: 6, from_col: 1, to_row: 3, to_col: 1,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "5",
+      defender_rank: "3", defender_piece_id: "c2", move_number: 2,
+    },
+  ];
+  const iw = runInformationWarfarePass(1, moves, pieces, pieceById, 2);
+  assertEquals(iw.compositionalKnowledgeCurve.length, 2);
+  assertEquals(iw.compositionalKnowledgeCurve[0], 1 / 12);
+  assertEquals(iw.compositionalKnowledgeCurve[1], 1 / 11);
 });

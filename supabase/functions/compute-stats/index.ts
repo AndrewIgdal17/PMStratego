@@ -370,6 +370,10 @@ Deno.serve(async (req) => {
     slot1: [],
     slot2: [],
   };
+  const compositionalKnowledgeBySlot: { slot1: number[]; slot2: number[] } = {
+    slot1: [],
+    slot2: [],
+  };
 
   function recordDeath(pieceId: string, moveNumber: number): void {
     const ps = pieceStats.get(pieceId);
@@ -577,6 +581,7 @@ Deno.serve(async (req) => {
     territory_timeline: territoryTimeline,
     think_times: thinkTimes,
     info_edge_curve: infoEdgeBySlot,
+    compositional_knowledge_curve: compositionalKnowledgeBySlot,
     // phase_stats filled after per-slot loop (Task 3–4)
   };
 
@@ -679,6 +684,8 @@ Deno.serve(async (req) => {
     );
 
     infoEdgeBySlot[slot === 1 ? "slot1" : "slot2"] = iw.infoEdgeCurve;
+    compositionalKnowledgeBySlot[slot === 1 ? "slot1" : "slot2"] =
+      iw.compositionalKnowledgeCurve;
 
     const revealAttacks = iw.revealAttacks;
     const revealWins = iw.revealWins;

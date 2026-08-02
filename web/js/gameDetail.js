@@ -36,6 +36,7 @@ async function loadGameDetail(id) {
   renderStoryHighlights(data, story, viewSlot);
   renderMaterialCurve(curveP1, story.turning_point, viewSlot);
   renderInfoEdge(story.info_edge_curve, viewSlot);
+  renderCompositionalKnowledge(story.compositional_knowledge_curve, viewSlot);
   renderPhaseStats(story.phase_stats, viewSlot);
   renderPieceCareers(story.piece_careers || [], viewSlot);
   renderTerritory(story.territory_timeline || []);
@@ -200,6 +201,17 @@ function renderInfoEdge(infoEdge, slot) {
     "game-info-edge",
     "Information Edge",
     "Asymmetric knowledge advantage after each combat: Scout inferences + elimination deductions you hold minus those the enemy holds. Pure combat reveals are symmetric and do not move this curve.",
+    series,
+    null,
+  );
+}
+
+function renderCompositionalKnowledge(compositionalKnowledge, slot) {
+  const series = compositionalKnowledge?.[`slot${slot}`] || [];
+  renderLineChart(
+    "game-compositional-knowledge",
+    "Compositional Knowledge",
+    "How much you can deduce about remaining enemy pieces from what you've already eliminated — rises as you kill more",
     series,
     null,
   );
