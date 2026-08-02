@@ -411,12 +411,12 @@ async function loadHistory(username) {
         ${data.map((g) => {
           const result = g.winner_slot === g.player_slot ? "Win" : (g.winner_slot ? "Loss" : "Draw");
           const cls = result === "Win" ? "win" : (result === "Loss" ? "loss" : "draw");
-          return `<tr>
-            <td><a href="profile.html?user=${encodeURIComponent(g.opponent_username || "Anonymous")}">${g.opponent_username || "Anonymous"}</a></td>
+          return `<tr class="clickable-row" onclick="location.href='game-detail.html?id=${g.game_id}&slot=${g.player_slot}'">
+            <td><a href="profile.html?user=${encodeURIComponent(g.opponent_username || "Anonymous")}" onclick="event.stopPropagation()">${g.opponent_username || "Anonymous"}</a></td>
             <td class="${cls}">${result}</td>
             <td>${g.turn_number || "—"}</td>
             <td class="curve-cell" data-game-id="${g.game_id}" data-player-slot="${g.player_slot}">—</td>
-            <td>${new Date(g.created_at).toLocaleDateString()}</td>
+            <td><a href="game-detail.html?id=${g.game_id}&slot=${g.player_slot}" onclick="event.stopPropagation()">${new Date(g.created_at).toLocaleDateString()}</a></td>
           </tr>`;
         }).join("")}
       </tbody>
