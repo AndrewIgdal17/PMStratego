@@ -19,7 +19,7 @@ Today each player's army color is a purely local, one-directional `localStorage`
 
 ### Data model
 
-Add two nullable columns to `games` (migration `0016_player_colors.sql`):
+Add two nullable columns to `games` (migration `0017_player_colors.sql` — the implementation plan claimed `0016` for private formations first, so this one is `0017`):
 
 ```sql
 alter table games add column player1_color text;

@@ -1,4 +1,14 @@
+---
+tags: [project/stratego]
+---
+
 # Private Saved Formations + L/R Mirror Implementation Plan
+
+## Related
+
+- [[Stratego MOC]]
+- [[Projects/Stratego/PROJECT_MEMORY]]
+- Design spec: `Projects/Stratego/code/docs/superpowers/specs/2026-08-02-stratego-private-formations-design.md`
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

@@ -1,4 +1,15 @@
+---
+tags: [project/stratego]
+---
+
 # Higgsfield Token Art Themes Implementation Plan
+
+## Related
+
+- [[Stratego MOC]]
+- [[Projects/Stratego/PROJECT_MEMORY]]
+- Design spec: `Projects/Stratego/code/docs/superpowers/specs/2026-08-02-stratego-higgsfield-tokens-design.md`
+- Note: this plan claims migration `0018_player_token_themes.sql` — `0016`/`0017` are claimed by `2026-08-02-stratego-private-formations.md` / `2026-08-02-stratego-color-claiming.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
