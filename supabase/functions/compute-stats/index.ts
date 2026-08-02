@@ -843,6 +843,128 @@ Deno.serve(async (req) => {
     }
     const comebackDelta = won && maxDeficit < 0 ? Math.abs(maxDeficit) : 0;
 
+    // === PHASE-BINNED STATS (per-slot) ===
+    // INVARIANT 1: total captures = attack kills + defense kills
+    let totalSlotCaptures = 0;
+    for (const m of moves as Move[]) {
+      if (isCaptureForSlot(m, slot, pieceById)) totalSlotCaptures++;
+    }
+
+    const gamePhaseStats = emptyPhaseStats();
+    let runningMaterialDiff = 0; // BEFORE current combat (Lens 2)
+    let runningCaptures = 0; // captures completed BEFORE current combat (Lens 1)
+    const slotKnownEnemy = new Set<string>(); // known BEFORE current combat (Lens 3)
+    // Avenge tracking — same semantics as reveal-set replay career counters
+    const phaseKilledByEnemy = new Map<string, string[]>();
+
+    for (const m of moves as Move[]) {
+      if (m.move_type !== "attack" || !m.outcome) continue;
+
+      const attackerVal = RANK_VALUE[m.attacker_rank ?? ""] ?? 0;
+      const defenderVal = RANK_VALUE[m.defender_rank ?? ""] ?? 0;
+      const isMyAttack = m.player_slot === slot;
+      const isEnemyAttack = m.player_slot !== slot;
+
+      let iAmDefender = false;
+      if (isEnemyAttack && m.defender_piece_id) {
+        const dp = pieceById.get(m.defender_piece_id);
+        iAmDefender = dp?.player_slot === slot;
+      }
+
+      if (!isMyAttack && !iAmDefender) continue;
+
+      // ---- BIN FIRST (INVARIANT 2 + 7: pre-combat material / known count) ----
+      const q = captureQuarter(runningCaptures, totalSlotCaptures);
+      const ms = materialState(runningMaterialDiff);
+      const fog = infoState(slotKnownEnemy.size);
+      const bins: PhaseBin[] = [
+        gamePhaseStats.by_capture_quarter[q],
+        gamePhaseStats.by_material_state[ms],
+        gamePhaseStats.by_info_state[fog],
+      ];
+
+      if (isMyAttack) {
+        // INVARIANT 5: attacks / attack_wins only when WE initiated
+        const wasUnknown = m.defender_piece_id
+          ? !slotKnownEnemy.has(m.defender_piece_id)
+          : false;
+        let tradeDelta = 0;
+        if (m.outcome === "ATTACKER_WINS") tradeDelta = defenderVal;
+        else if (m.outcome === "DEFENDER_WINS") tradeDelta = -attackerVal;
+        else tradeDelta = -attackerVal; // TIE — match existing trade loop
+
+        for (const b of bins) {
+          b.attacks++;
+          if (m.outcome === "ATTACKER_WINS") b.attack_wins++;
+          if (wasUnknown) {
+            b.reveal_attacks++;
+            if (m.outcome === "ATTACKER_WINS") b.reveal_wins++;
+          }
+          b.trade_sum += tradeDelta;
+          b.trade_count++;
+        }
+
+        // Avenge kill as attacker: kill an enemy that previously killed one of ours
+        if (
+          m.outcome === "ATTACKER_WINS" &&
+          m.defender_piece_id &&
+          phaseKilledByEnemy.has(m.defender_piece_id)
+        ) {
+          for (const b of bins) b.avenge_kills++;
+        }
+      } else if (iAmDefender) {
+        // Defense: trade only — never attacks / attack_wins
+        let tradeDelta = 0;
+        if (m.outcome === "DEFENDER_WINS") tradeDelta = attackerVal;
+        else if (m.outcome === "ATTACKER_WINS") tradeDelta = -defenderVal;
+        else tradeDelta = -defenderVal;
+
+        for (const b of bins) {
+          b.trade_sum += tradeDelta;
+          b.trade_count++;
+        }
+
+        // Avenge opportunity: enemy piece kills one of ours
+        if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+          if (!phaseKilledByEnemy.has(m.piece_id)) phaseKilledByEnemy.set(m.piece_id, []);
+          phaseKilledByEnemy.get(m.piece_id)!.push(m.defender_piece_id);
+          for (const b of bins) b.avenge_opportunities++;
+        }
+
+        // Avenge kill as defender: our piece kills that marked enemy attacker
+        if (m.outcome === "DEFENDER_WINS" && phaseKilledByEnemy.has(m.piece_id)) {
+          for (const b of bins) b.avenge_kills++;
+        }
+      }
+
+      // ---- THEN UPDATE STATE ----
+      if (isMyAttack) {
+        if (m.outcome === "ATTACKER_WINS") runningMaterialDiff += defenderVal;
+        else if (m.outcome === "DEFENDER_WINS") runningMaterialDiff -= attackerVal;
+        else {
+          runningMaterialDiff -= attackerVal;
+          runningMaterialDiff += defenderVal;
+        }
+      } else if (iAmDefender) {
+        if (m.outcome === "ATTACKER_WINS") runningMaterialDiff -= defenderVal;
+        else if (m.outcome === "DEFENDER_WINS") runningMaterialDiff += attackerVal;
+        else {
+          runningMaterialDiff += attackerVal;
+          runningMaterialDiff -= defenderVal;
+        }
+      }
+
+      if (isCaptureForSlot(m, slot, pieceById)) runningCaptures++;
+
+      if (isMyAttack && m.defender_piece_id) {
+        slotKnownEnemy.add(m.defender_piece_id);
+      } else if (iAmDefender) {
+        slotKnownEnemy.add(m.piece_id);
+      }
+    }
+
+    mergePhaseStats(phaseStatsBySlot[slot], gamePhaseStats);
+
     // === COMBAT HEATMAP ===
     const heatmap: Record<string, { attacks: number; wins: number }> = {
       ...(stats.attack_heatmap ?? {}),
@@ -1195,6 +1317,11 @@ Deno.serve(async (req) => {
       }
     }
   }
+
+  story.phase_stats = {
+    slot1: phaseStatsBySlot[1],
+    slot2: phaseStatsBySlot[2],
+  };
 
   await supabase.from("game_summaries").upsert(
     {
