@@ -14,6 +14,7 @@ import {
   emptyMemoryAccum,
   accumulateMemoryTests,
   binPhaseEvents,
+  computeInfoArchetype,
   mergePhaseCareer,
   emptyPhaseStats,
   type LegalMove,
@@ -335,4 +336,54 @@ Deno.test("mergePhaseCareer: accumulates memory fields across games", () => {
   game.by_info_state.deep_fog.memory_hits_w = 2;
   const again = mergePhaseCareer(merged, game);
   assertEquals(again.by_info_state.deep_fog.memory_hits_w, 5);
+});
+
+Deno.test("computeInfoArchetype: trapper wins on high stillness + ambush", () => {
+  const { archetype, scores } = computeInfoArchetype({
+    stillness_never_moved: 30,
+    stillness_movable_total: 40,
+    info_exchange_ratio_sum: 4,
+    info_exchange_games: 5,
+    deduction_latency_sum: 40,
+    deduction_latency_count: 4,
+    bluff_bait_events: 2,
+    bluff_bait_bitten: 0,
+    reveal_half_life_sum: 1,
+    reveal_half_life_games: 5,
+    ambush_defenses: 10,
+    ambush_wins: 8,
+    controlled_exposure_attacks: 20,
+    controlled_exposure_burned: 5,
+    silent_majority_sum: 2,
+    silent_majority_games: 5,
+    memory_hits_w: 5,
+    memory_misses_w: 5,
+  });
+  assertEquals(archetype, "trapper");
+  assertEquals(scores.trapper > scores.bluffer, true);
+  assertEquals(scores.trapper > scores.converter, true);
+});
+
+Deno.test("computeInfoArchetype: investor wins on high exchange rate", () => {
+  const { archetype } = computeInfoArchetype({
+    stillness_never_moved: 5,
+    stillness_movable_total: 40,
+    info_exchange_ratio_sum: 18,
+    info_exchange_games: 5,
+    deduction_latency_sum: 40,
+    deduction_latency_count: 4,
+    bluff_bait_events: 0,
+    bluff_bait_bitten: 0,
+    reveal_half_life_sum: 0.2,
+    reveal_half_life_games: 5,
+    ambush_defenses: 2,
+    ambush_wins: 0,
+    controlled_exposure_attacks: 20,
+    controlled_exposure_burned: 5,
+    silent_majority_sum: 1,
+    silent_majority_games: 5,
+    memory_hits_w: 5,
+    memory_misses_w: 5,
+  });
+  assertEquals(archetype, "investor");
 });

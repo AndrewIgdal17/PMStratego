@@ -1486,3 +1486,84 @@ export function mergePhaseCareer(
   }
   return out;
 }
+
+// --- IW archetype (Wave-1 metrics only) ---
+
+export type InfoArchetype =
+  | "bluffer"
+  | "trapper"
+  | "converter"
+  | "denier"
+  | "investor";
+
+export type InfoArchetypeInput = {
+  stillness_never_moved: number;
+  stillness_movable_total: number;
+  info_exchange_ratio_sum: number;
+  info_exchange_games: number;
+  deduction_latency_sum: number;
+  deduction_latency_count: number;
+  bluff_bait_events: number;
+  bluff_bait_bitten: number;
+  reveal_half_life_sum: number;
+  reveal_half_life_games: number;
+  ambush_defenses: number;
+  ambush_wins: number;
+  controlled_exposure_attacks: number;
+  controlled_exposure_burned: number;
+  silent_majority_sum: number;
+  silent_majority_games: number;
+  memory_hits_w: number;
+  memory_misses_w: number;
+};
+
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
+/** Invert latency: 0 moves → 1.0, 20+ moves → ~0 */
+function latencyScore(avgLatency: number): number {
+  return clamp01(1 - avgLatency / 20);
+}
+
+export function computeInfoArchetype(
+  s: InfoArchetypeInput,
+): { archetype: InfoArchetype; scores: Record<InfoArchetype, number> } {
+  const stillness = s.stillness_movable_total > 0
+    ? s.stillness_never_moved / s.stillness_movable_total
+    : 0;
+  const exchange = s.info_exchange_games > 0
+    ? s.info_exchange_ratio_sum / s.info_exchange_games
+    : 1;
+  const exchangeN = clamp01(exchange / 2); // 2.0 ratio → 1.0
+  const lat = s.deduction_latency_count > 0
+    ? latencyScore(s.deduction_latency_sum / s.deduction_latency_count)
+    : 0.5;
+  const bluff = s.bluff_bait_events > 0
+    ? s.bluff_bait_bitten / s.bluff_bait_events
+    : 0;
+  const halfLife = s.reveal_half_life_games > 0
+    ? s.reveal_half_life_sum / s.reveal_half_life_games
+    : 0.5;
+  const ambush = s.ambush_defenses > 0 ? s.ambush_wins / s.ambush_defenses : 0;
+  const exposure = s.controlled_exposure_attacks > 0
+    ? s.controlled_exposure_burned / s.controlled_exposure_attacks
+    : 0;
+  const silent = s.silent_majority_games > 0
+    ? s.silent_majority_sum / s.silent_majority_games
+    : 0;
+  const memW = s.memory_hits_w + s.memory_misses_w;
+  const memory = memW > 0 ? s.memory_hits_w / memW : 0.5;
+
+  const scores: Record<InfoArchetype, number> = {
+    bluffer: bluff * 3 + (1 - stillness) * 2 + (1 - silent) * 1.5 + (1 - ambush),
+    trapper: stillness * 3 + ambush * 3 + (1 - bluff) * 2,
+    converter: lat * 3 + memory * 3,
+    denier: halfLife * 3 + exposure * 2 + silent * 2 + (1 - bluff),
+    investor: exchangeN * 4 + memory * 1.5,
+  };
+
+  const archetype = (Object.entries(scores) as [InfoArchetype, number][])
+    .sort(([, a], [, b]) => b - a)[0][0];
+  return { archetype, scores };
+}

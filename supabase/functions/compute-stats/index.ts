@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   binPhaseEvents,
+  computeInfoArchetype,
   emptyPhaseBin,
   emptyPhaseStats,
   mergeIwPhaseFields,
@@ -1230,11 +1231,38 @@ Deno.serve(async (req) => {
 
       const archetype = Object.entries(scores).sort(([, a], [, b]) => b - a)[0][0];
 
+      const info = computeInfoArchetype({
+        stillness_never_moved: (stats.stillness_never_moved ?? 0) + iw.stillnessNeverMoved,
+        stillness_movable_total: (stats.stillness_movable_total ?? 0) + iw.stillnessMovableTotal,
+        info_exchange_ratio_sum: Number(stats.info_exchange_ratio_sum ?? 0) + iw.infoExchangeRatio,
+        info_exchange_games: (stats.info_exchange_games ?? 0) + 1,
+        deduction_latency_sum: (stats.deduction_latency_sum ?? 0) + iw.deductionLatencySum,
+        deduction_latency_count: (stats.deduction_latency_count ?? 0) + iw.deductionLatencyCount,
+        bluff_bait_events: (stats.bluff_bait_events ?? 0) + iw.bluffBaitEvents,
+        bluff_bait_bitten: (stats.bluff_bait_bitten ?? 0) + iw.bluffBaitBitten,
+        reveal_half_life_sum: Number(stats.reveal_half_life_sum ?? 0) +
+          (iw.revealHalfLife !== null ? iw.revealHalfLife : 0),
+        reveal_half_life_games: (stats.reveal_half_life_games ?? 0) +
+          (iw.revealHalfLife !== null ? 1 : 0),
+        ambush_defenses: (stats.ambush_defenses ?? 0) + iw.ambushDefenses,
+        ambush_wins: (stats.ambush_wins ?? 0) + iw.ambushWins,
+        controlled_exposure_attacks:
+          (stats.controlled_exposure_attacks ?? 0) + iw.controlledExposureAttacks,
+        controlled_exposure_burned:
+          (stats.controlled_exposure_burned ?? 0) + iw.controlledExposureBurned,
+        silent_majority_sum: Number(stats.silent_majority_sum ?? 0) + iw.silentMajority,
+        silent_majority_games: (stats.silent_majority_games ?? 0) + 1,
+        memory_hits_w: Number(stats.memory_hits_w ?? 0) + iw.memory.hitsW,
+        memory_misses_w: Number(stats.memory_misses_w ?? 0) + iw.memory.missesW,
+      });
+
       const { error: archetypeUpdateError } = await supabase
         .from("player_stats")
         .update({
           archetype,
           archetype_updated_at: new Date().toISOString(),
+          info_archetype: info.archetype,
+          info_archetype_updated_at: new Date().toISOString(),
         })
         .eq("player_id", playerId);
 
