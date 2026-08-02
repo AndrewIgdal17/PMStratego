@@ -7,10 +7,17 @@ export const RANK_VALUE_IW: Record<string, number> = {
   "8": 3, "9": 2, "10": 2, BOMB: 5, FLAG: 0,
 };
 
+export type RevealSource =
+  | "combat_as_attacker"
+  | "combat_as_defender"
+  | "movement_inference"
+  | "elimination_deduction";
+
 export interface KnowledgeEntry {
   piece_id: string;
   rank: string;
   revealed_at: number;
+  reveal_source: RevealSource;
   last_known_row: number;
   last_known_col: number;
   last_update_move: number;
@@ -83,6 +90,7 @@ export function learnPiece(
   row: number,
   col: number,
   moveNumber: number,
+  source: RevealSource,
 ): boolean {
   const existing = ledger.get(pieceId);
   if (existing) {
@@ -91,12 +99,14 @@ export function learnPiece(
     existing.last_known_col = col;
     existing.last_update_move = moveNumber;
     if (!existing.alive) existing.alive = true;
+    // Preserve original reveal_source — do not overwrite
     return false;
   }
   ledger.set(pieceId, {
     piece_id: pieceId,
     rank,
     revealed_at: moveNumber,
+    reveal_source: source,
     last_known_row: row,
     last_known_col: col,
     last_update_move: moveNumber,
@@ -409,9 +419,18 @@ export function applyLedgerUpdatesFromMove(
   const isMyMove = m.player_slot === slot;
   const isEnemyMove = m.player_slot !== slot;
 
-  // Scout inference from multi-square enemy moves
+  // Scout inference — ONE-DIRECTIONAL toward the observer
   if (isEnemyMove && inferScoutFromMove(m)) {
-    learnPiece(myLedger, m.piece_id, "9", m.to_row, m.to_col, m.move_number);
+    learnPiece(
+      myLedger, m.piece_id, "9", m.to_row, m.to_col, m.move_number,
+      "movement_inference",
+    );
+  }
+  if (isMyMove && inferScoutFromMove(m)) {
+    learnPiece(
+      theirLedger, m.piece_id, "9", m.to_row, m.to_col, m.move_number,
+      "movement_inference",
+    );
   }
 
   // Position updates for pieces already in ledgers
@@ -428,27 +447,30 @@ export function applyLedgerUpdatesFromMove(
   if (m.move_type !== "attack" || !m.outcome || !m.defender_piece_id) return;
 
   if (isMyMove) {
-    // I learn defender; they learn my attacker
     if (m.defender_rank) {
-      learnPiece(myLedger, m.defender_piece_id, m.defender_rank, m.to_row, m.to_col, m.move_number);
+      learnPiece(
+        myLedger, m.defender_piece_id, m.defender_rank, m.to_row, m.to_col,
+        m.move_number, "combat_as_attacker",
+      );
     }
     if (m.attacker_rank) {
-      learnPiece(theirLedger, m.piece_id, m.attacker_rank, m.to_row, m.to_col, m.move_number);
+      learnPiece(
+        theirLedger, m.piece_id, m.attacker_rank, m.to_row, m.to_col,
+        m.move_number, "combat_as_defender",
+      );
     }
   } else {
-    // Enemy attacks me: I learn their attacker; they learn my defender
     if (m.attacker_rank) {
-      learnPiece(myLedger, m.piece_id, m.attacker_rank, m.to_row, m.to_col, m.move_number);
+      learnPiece(
+        myLedger, m.piece_id, m.attacker_rank, m.to_row, m.to_col,
+        m.move_number, "combat_as_defender",
+      );
     }
     const def = pieceById.get(m.defender_piece_id);
     if (def && def.player_slot === slot) {
       learnPiece(
-        theirLedger,
-        m.defender_piece_id,
-        def.rank,
-        m.to_row,
-        m.to_col,
-        m.move_number,
+        theirLedger, m.defender_piece_id, def.rank, m.to_row, m.to_col,
+        m.move_number, "combat_as_attacker",
       );
     }
   }

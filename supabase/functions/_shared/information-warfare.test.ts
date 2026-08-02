@@ -56,8 +56,8 @@ Deno.test("classifyCombatEvent taxonomy", () => {
 
 Deno.test("learnPiece is idempotent for count", () => {
   const L = createLedger();
-  assertEquals(learnPiece(L, "a", "BOMB", 1, 1, 5), true);
-  assertEquals(learnPiece(L, "a", "BOMB", 1, 1, 6), false);
+  assertEquals(learnPiece(L, "a", "BOMB", 1, 1, 5, "combat_as_attacker"), true);
+  assertEquals(learnPiece(L, "a", "BOMB", 1, 1, 6, "combat_as_attacker"), false);
   assertEquals(L.size, 1);
 });
 
@@ -89,7 +89,7 @@ Deno.test("bidirectional learn: my attack populates both ledgers", () => {
 
 Deno.test("spy_marshal: Spy HIT; General MISS; Marshal TIE excluded upstream", () => {
   const my = createLedger();
-  learnPiece(my, "m1", "1", 3, 3, 5);
+  learnPiece(my, "m1", "1", 3, 3, 5, "combat_as_attacker");
   const pieces = new Map<string, PieceLike>([
     ["spy", { id: "spy", player_slot: 1, rank: "10", alive: true }],
     ["gen", { id: "gen", player_slot: 1, rank: "2", alive: true }],
@@ -122,7 +122,7 @@ Deno.test("spy_marshal: Spy HIT; General MISS; Marshal TIE excluded upstream", (
 
 Deno.test("threat_avoidance: MISS-only on known losing attack; no HIT events", () => {
   const my = createLedger();
-  learnPiece(my, "bomb", "BOMB", 4, 4, 2);
+  learnPiece(my, "bomb", "BOMB", 4, 4, 2, "combat_as_attacker");
   const pieces = new Map<string, PieceLike>([
     ["scout", { id: "scout", player_slot: 1, rank: "9", alive: true }],
     ["bomb", { id: "bomb", player_slot: 2, rank: "BOMB", alive: true }],
@@ -147,7 +147,7 @@ Deno.test("threat_avoidance: MISS-only on known losing attack; no HIT events", (
 
 Deno.test("trades excluded from memory tests", () => {
   const my = createLedger();
-  learnPiece(my, "e", "5", 4, 4, 1);
+  learnPiece(my, "e", "5", 4, 4, 1, "combat_as_attacker");
   const pieces = new Map<string, PieceLike>([
     ["a", { id: "a", player_slot: 1, rank: "5", alive: true }],
     ["e", { id: "e", player_slot: 2, rank: "5", alive: true }],
@@ -386,4 +386,117 @@ Deno.test("computeInfoArchetype: investor wins on high exchange rate", () => {
     memory_misses_w: 5,
   });
   assertEquals(archetype, "investor");
+});
+
+Deno.test("learnPiece stores reveal_source and preserves it on update", () => {
+  const L = createLedger();
+  assertEquals(
+    learnPiece(L, "a", "9", 3, 3, 5, "movement_inference"),
+    true,
+  );
+  assertEquals(L.get("a")!.reveal_source, "movement_inference");
+  assertEquals(
+    learnPiece(L, "a", "9", 4, 4, 8, "combat_as_attacker"),
+    false,
+  );
+  assertEquals(L.get("a")!.reveal_source, "movement_inference");
+  assertEquals(L.get("a")!.last_known_row, 4);
+  assertEquals(L.get("a")!.last_update_move, 8);
+});
+
+Deno.test("bidirectional Scout inference: my long-move teaches theirLedger", () => {
+  const my = createLedger();
+  const their = createLedger();
+  const vacated = new Map();
+  const pieces = new Map<string, PieceLike>([
+    ["scout", { id: "scout", player_slot: 1, rank: "9", alive: true }],
+    ["e1", { id: "e1", player_slot: 2, rank: "5", alive: true }],
+  ]);
+  applyLedgerUpdatesFromMove(
+    {
+      piece_id: "scout",
+      player_slot: 1,
+      from_row: 7,
+      from_col: 0,
+      to_row: 4,
+      to_col: 0,
+      move_type: "move",
+      outcome: null,
+      attacker_rank: null,
+      defender_rank: null,
+      defender_piece_id: null,
+      move_number: 3,
+    },
+    1,
+    my,
+    their,
+    vacated,
+    pieces,
+  );
+  assertEquals(their.has("scout"), true);
+  assertEquals(their.get("scout")!.rank, "9");
+  assertEquals(their.get("scout")!.reveal_source, "movement_inference");
+  assertEquals(my.size, 0);
+});
+
+Deno.test("enemy Scout long-move teaches myLedger with movement_inference", () => {
+  const my = createLedger();
+  const their = createLedger();
+  const pieces = new Map<string, PieceLike>([
+    ["escout", { id: "escout", player_slot: 2, rank: "9", alive: true }],
+  ]);
+  applyLedgerUpdatesFromMove(
+    {
+      piece_id: "escout",
+      player_slot: 2,
+      from_row: 2,
+      from_col: 0,
+      to_row: 5,
+      to_col: 0,
+      move_type: "move",
+      outcome: null,
+      attacker_rank: null,
+      defender_rank: null,
+      defender_piece_id: null,
+      move_number: 4,
+    },
+    1,
+    my,
+    their,
+    new Map(),
+    pieces,
+  );
+  assertEquals(my.get("escout")!.reveal_source, "movement_inference");
+});
+
+Deno.test("combat learn tags combat_as_attacker / combat_as_defender", () => {
+  const my = createLedger();
+  const their = createLedger();
+  const pieces = new Map<string, PieceLike>([
+    ["me", { id: "me", player_slot: 1, rank: "3", alive: true }],
+    ["them", { id: "them", player_slot: 2, rank: "5", alive: true }],
+  ]);
+  applyLedgerUpdatesFromMove(
+    {
+      piece_id: "me",
+      player_slot: 1,
+      from_row: 5,
+      from_col: 0,
+      to_row: 4,
+      to_col: 0,
+      move_type: "attack",
+      outcome: "ATTACKER_WINS",
+      attacker_rank: "3",
+      defender_rank: "5",
+      defender_piece_id: "them",
+      move_number: 10,
+    },
+    1,
+    my,
+    their,
+    new Map(),
+    pieces,
+  );
+  assertEquals(my.get("them")!.reveal_source, "combat_as_attacker");
+  assertEquals(their.get("me")!.reveal_source, "combat_as_defender");
 });
