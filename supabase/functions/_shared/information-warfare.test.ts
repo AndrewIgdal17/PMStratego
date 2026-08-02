@@ -7,6 +7,8 @@ import {
   learnPiece,
   createLedger,
   movableRank,
+  applyLedgerUpdatesFromMove,
+  type PieceLike,
 } from "./information-warfare.ts";
 
 Deno.test("rankBeats: lower number wins; Spy→Marshal; Miner→Bomb", () => {
@@ -52,4 +54,24 @@ Deno.test("movableRank excludes Bomb/Flag", () => {
   assertEquals(movableRank("BOMB"), false);
   assertEquals(movableRank("FLAG"), false);
   assertEquals(movableRank("9"), true);
+});
+
+Deno.test("bidirectional learn: my attack populates both ledgers", () => {
+  const my = createLedger();
+  const their = createLedger();
+  const vacated = new Map();
+  const pieces = new Map<string, PieceLike>([
+    ["me", { id: "me", player_slot: 1, rank: "8", alive: true }],
+    ["bomb", { id: "bomb", player_slot: 2, rank: "BOMB", alive: true }],
+  ]);
+  applyLedgerUpdatesFromMove(
+    {
+      piece_id: "me", player_slot: 1, from_row: 5, from_col: 0, to_row: 4, to_col: 0,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "8",
+      defender_rank: "BOMB", defender_piece_id: "bomb", move_number: 10,
+    },
+    1, my, their, vacated, pieces,
+  );
+  assertEquals(my.has("bomb"), true);
+  assertEquals(their.has("me"), true);
 });

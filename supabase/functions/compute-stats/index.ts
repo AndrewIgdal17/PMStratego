@@ -1,6 +1,12 @@
 // supabase/functions/compute-stats/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import {
+  applyLedgerUpdatesFromMove,
+  createLedger,
+  type KnowledgeLedger,
+  type VacatedSquare,
+} from "../_shared/information-warfare.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -721,8 +727,13 @@ Deno.serve(async (req) => {
       (m.player_slot !== slot && m.outcome === "DEFENDER_WINS")
     ).length;
 
-    // === REVEAL-SET REPLAY ===
+    // === REVEAL-SET REPLAY (bidirectional knowledge ledgers) ===
+    const myLedger: KnowledgeLedger = createLedger();
+    const theirLedger: KnowledgeLedger = createLedger();
+    const myVacated = new Map<string, VacatedSquare>();
+    /** Legacy alias: enemy piece IDs in myLedger (kept for downstream compatibility). */
     const revealedEnemyIds = new Set<string>();
+
     let revealAttacks = 0;
     let revealWins = 0;
     let revealThenKill = 0;
@@ -757,39 +768,46 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (!m.defender_piece_id) continue;
+      // Reveal / avenge scoring BEFORE ledger update (uses pre-combat knowledge)
+      if (m.defender_piece_id && m.move_type === "attack" && m.outcome) {
+        if (isMyAttack) {
+          const wasRevealed = myLedger.has(m.defender_piece_id);
+          if (!wasRevealed) {
+            revealAttacks++;
+            if (m.outcome === "ATTACKER_WINS") revealWins++;
+            firstRevealedByMe.add(m.defender_piece_id);
+            revealTotal++;
+          }
+        } else if (isEnemyAttack) {
+          if (!firstRevealedByMe.has(m.piece_id)) {
+            firstRevealedByMe.add(m.piece_id);
+            revealTotal++;
+          }
 
-      if (isMyAttack) {
-        const wasRevealed = revealedEnemyIds.has(m.defender_piece_id);
-        if (!wasRevealed) {
-          revealAttacks++;
-          if (m.outcome === "ATTACKER_WINS") revealWins++;
-          revealedEnemyIds.add(m.defender_piece_id);
-          firstRevealedByMe.add(m.defender_piece_id);
-          revealTotal++;
-        }
-      } else if (isEnemyAttack) {
-        revealedEnemyIds.add(m.piece_id);
-        if (!firstRevealedByMe.has(m.piece_id)) {
-          firstRevealedByMe.add(m.piece_id);
-          revealTotal++;
-        }
-
-        if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
-          const defPiece = pieceById.get(m.defender_piece_id);
-          if (defPiece?.player_slot === slot) {
-            if (!killedByEnemy.has(m.piece_id)) killedByEnemy.set(m.piece_id, []);
-            killedByEnemy.get(m.piece_id)!.push(m.defender_piece_id);
-            avengeOpportunities++;
+          if (m.outcome === "ATTACKER_WINS" && m.defender_piece_id) {
+            const defPiece = pieceById.get(m.defender_piece_id);
+            if (defPiece?.player_slot === slot) {
+              if (!killedByEnemy.has(m.piece_id)) killedByEnemy.set(m.piece_id, []);
+              killedByEnemy.get(m.piece_id)!.push(m.defender_piece_id);
+              avengeOpportunities++;
+            }
           }
         }
+
+        if (isMyAttack && m.outcome === "ATTACKER_WINS" && killedByEnemy.has(m.defender_piece_id)) {
+          avengeKills++;
+        }
+        if (isEnemyAttack && m.outcome === "DEFENDER_WINS" && killedByEnemy.has(m.piece_id)) {
+          avengeKills++;
+        }
       }
 
-      if (isMyAttack && m.outcome === "ATTACKER_WINS" && killedByEnemy.has(m.defender_piece_id)) {
-        avengeKills++;
-      }
-      if (isEnemyAttack && m.outcome === "DEFENDER_WINS" && killedByEnemy.has(m.piece_id)) {
-        avengeKills++;
+      applyLedgerUpdatesFromMove(m, slot, myLedger, theirLedger, myVacated, pieceById);
+
+      // Sync legacy reveal set from myLedger (enemy pieces only)
+      for (const [id] of myLedger) {
+        const p = pieceById.get(id);
+        if (p && p.player_slot !== slot) revealedEnemyIds.add(id);
       }
     }
 
