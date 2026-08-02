@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "METHOD_NOT_ALLOWED" }, 405);
   }
 
-  let body: { game_id?: string };
+  let body: { game_id?: string; story_only?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -219,6 +219,7 @@ Deno.serve(async (req) => {
   }
 
   const { game_id } = body;
+  const storyOnly = body.story_only === true;
   if (!game_id) {
     return jsonResponse({ error: "MISSING_GAME_ID" }, 400);
   }
@@ -239,7 +240,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "GAME_NOT_FINISHED" }, 400);
   }
 
-  if (game.stats_computed) {
+  if (game.stats_computed && !storyOnly) {
     return jsonResponse({ ok: true, skipped: "already_computed" });
   }
 
@@ -247,7 +248,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: true, skipped: "anonymous_players" });
   }
 
-  if (game.is_bot_game) {
+  if (game.is_bot_game && !storyOnly) {
     return jsonResponse({ ok: true, skipped: "bot_game" });
   }
 
@@ -1029,6 +1030,8 @@ Deno.serve(async (req) => {
     const rivalWins: Record<string, number> = stats.career_rival_wins ?? {};
     rivalWins[oppId] = (rivalWins[oppId] ?? 0) + (won ? 1 : 0);
 
+    // story_only: rewrite game_summaries only — never re-apply Elo / career accumulators
+    if (!storyOnly) {
     const { error: playerUpdateError } = await supabase
       .from("players")
       .update({
@@ -1398,6 +1401,7 @@ Deno.serve(async (req) => {
         return jsonResponse({ error: "ACHIEVEMENTS_UPDATE_FAILED", detail: achievementsError.message }, 500);
       }
     }
+    } // end !storyOnly
   }
 
   story.phase_stats = {
@@ -1420,7 +1424,9 @@ Deno.serve(async (req) => {
     { onConflict: "game_id" },
   );
 
-  await supabase.from("games").update({ stats_computed: true }).eq("id", game_id);
+  if (!storyOnly) {
+    await supabase.from("games").update({ stats_computed: true }).eq("id", game_id);
+  }
 
-  return jsonResponse({ ok: true });
+  return jsonResponse({ ok: true, story_only: storyOnly });
 });
