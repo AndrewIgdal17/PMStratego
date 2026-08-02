@@ -559,6 +559,7 @@ export interface MemoryTestResult {
   known_rank: string;
   defender_piece_id: string;
   load: number;
+  reveal_source: RevealSource | null;
 }
 
 export interface MemoryEvent {
@@ -626,30 +627,45 @@ const RANK_NAME: Record<string, string> = {
   "9": "Scout", "10": "Spy", BOMB: "Bomb", FLAG: "Flag",
 };
 
-function narrativeFor(test: MemoryTestResult): string {
+function revealHow(source: RevealSource | null, rankName: string): string {
+  if (source === "movement_inference") {
+    return `Identified as ${rankName} from multi-square movement`;
+  }
+  if (source === "elimination_deduction") {
+    return `Deduced as ${rankName} from army composition`;
+  }
+  if (source === "combat_as_attacker" || source === "combat_as_defender") {
+    return `Previously revealed in combat as ${rankName}`;
+  }
+  return `Known ${rankName}`;
+}
+
+export function narrativeFor(test: MemoryTestResult): string {
   const ar = RANK_NAME[test.attacker_rank] ?? test.attacker_rank;
   const kr = RANK_NAME[test.known_rank] ?? test.known_rank;
+  const how = revealHow(test.reveal_source, kr);
+
   if (test.test_id === "bomb_correct") {
     return test.hit
-      ? `Move ${test.move_number} — remembered the Bomb ${test.age} moves later; ${ar} cleared it.`
-      : `Move ${test.move_number} — forgot the Bomb (age ${test.age}); sent a ${ar} into it.`;
+      ? `Move ${test.move_number} — remembered the Bomb ${test.age} moves later; ${ar} cleared it. (${how})`
+      : `Move ${test.move_number} — forgot the Bomb (age ${test.age}); sent a ${ar} into it. (${how})`;
   }
   if (test.test_id === "track_strike") {
     return test.hit
-      ? `Move ${test.move_number} — tracked ${kr} to its new square.`
-      : `Move ${test.move_number} — attacked the old ${kr} square after it moved.`;
+      ? `Move ${test.move_number} — tracked ${kr} to its new square. (${how})`
+      : `Move ${test.move_number} — attacked where a ${kr} used to be — it had moved ${test.age} turns ago. (${how})`;
   }
   if (test.test_id === "threat_avoidance") {
-    return `Move ${test.move_number} — walked ${ar} into a known lethal ${kr}.`;
+    return `Move ${test.move_number} — walked ${ar} into a known lethal ${kr}. (${how})`;
   }
   if (test.test_id === "spy_marshal") {
     return test.hit
-      ? `Move ${test.move_number} — Spy correctly struck the known Marshal.`
-      : `Move ${test.move_number} — misplayed the known Marshal with ${ar}.`;
+      ? `Move ${test.move_number} — Spy correctly struck the known Marshal. (${how})`
+      : `Move ${test.move_number} — misplayed the known Marshal with ${ar}. (${how})`;
   }
   return test.hit
-    ? `Move ${test.move_number} — correctly re-engaged ${kr} with ${ar}.`
-    : `Move ${test.move_number} — misjudged ${kr}; sent ${ar}.`;
+    ? `Move ${test.move_number} — correctly re-engaged ${kr} with ${ar}. (${how})`
+    : `Move ${test.move_number} — misjudged ${kr}; sent ${ar}. (${how})`;
 }
 
 /**
@@ -691,6 +707,7 @@ export function emitMemoryTestsForAttack(
         known_rank: stale.rank,
         defender_piece_id: m.defender_piece_id,
         load,
+        reveal_source: staleEntry?.reveal_source ?? null,
       });
     }
   } else if (known?.moved_since_reveal) {
@@ -706,6 +723,7 @@ export function emitMemoryTestsForAttack(
       known_rank: known.rank,
       defender_piece_id: m.defender_piece_id,
       load,
+      reveal_source: known.reveal_source ?? null,
     });
   }
 
@@ -726,6 +744,7 @@ export function emitMemoryTestsForAttack(
       known_rank: known.rank,
       defender_piece_id: m.defender_piece_id,
       load,
+      reveal_source: known.reveal_source ?? null,
     });
   }
 
@@ -740,6 +759,7 @@ export function emitMemoryTestsForAttack(
       known_rank: known.rank,
       defender_piece_id: m.defender_piece_id,
       load,
+      reveal_source: known.reveal_source ?? null,
     });
   } else if (known.rank === "1") {
     results.push({
@@ -752,6 +772,7 @@ export function emitMemoryTestsForAttack(
       known_rank: known.rank,
       defender_piece_id: m.defender_piece_id,
       load,
+      reveal_source: known.reveal_source ?? null,
     });
   } else if (!ranksTie(m.attacker_rank, known.rank)) {
     results.push({
@@ -764,6 +785,7 @@ export function emitMemoryTestsForAttack(
       known_rank: known.rank,
       defender_piece_id: m.defender_piece_id,
       load,
+      reveal_source: known.reveal_source ?? null,
     });
   }
 

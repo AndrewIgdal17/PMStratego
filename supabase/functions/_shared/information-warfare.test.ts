@@ -17,6 +17,7 @@ import {
   mergeMemoryScoutingWithCareer,
   emptyMemoryAccum,
   accumulateMemoryTests,
+  narrativeFor,
   binPhaseEvents,
   computeInfoArchetype,
   mergePhaseCareer,
@@ -233,6 +234,7 @@ Deno.test("mergeMemoryScoutingWithCareer: sums career counters and age buckets",
     known_rank: "5",
     defender_piece_id: "e1",
     load: 7,
+    reveal_source: "combat_as_attacker",
   }]);
   accumulateMemoryTests(game, [{
     test_id: "track_strike",
@@ -244,6 +246,7 @@ Deno.test("mergeMemoryScoutingWithCareer: sums career counters and age buckets",
     known_rank: "6",
     defender_piece_id: "e2",
     load: 8,
+    reveal_source: "combat_as_attacker",
   }]);
 
   const prev = buildMemoryScouting(
@@ -391,6 +394,40 @@ Deno.test("computeInfoArchetype: investor wins on high exchange rate", () => {
     memory_misses_w: 5,
   });
   assertEquals(archetype, "investor");
+});
+
+Deno.test("narrativeFor track_strike MISS mentions moved piece, not jargon", () => {
+  const text = narrativeFor({
+    test_id: "track_strike",
+    hit: false,
+    weight: 2,
+    age: 63,
+    move_number: 80,
+    attacker_rank: "4",
+    known_rank: "9",
+    defender_piece_id: "x",
+    load: 4,
+    reveal_source: "movement_inference",
+  });
+  assertEquals(text.includes("track_strike"), false);
+  assertEquals(text.includes("Scout"), true);
+  assertEquals(text.includes("63"), true);
+});
+
+Deno.test("narrativeFor mentions Scout identified by multi-square movement", () => {
+  const text = narrativeFor({
+    test_id: "known_win",
+    hit: true,
+    weight: 3,
+    age: 5,
+    move_number: 20,
+    attacker_rank: "3",
+    known_rank: "9",
+    defender_piece_id: "x",
+    load: 2,
+    reveal_source: "movement_inference",
+  });
+  assertEquals(/multi-square|movement/i.test(text), true);
 });
 
 Deno.test("learnPiece stores reveal_source and preserves it on update", () => {
