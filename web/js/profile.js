@@ -98,6 +98,50 @@ function renderScoutingTags(scouting) {
   return `<div class="scouting-tags">${tags.map((tag) => `<span class="scouting-tag">${tagLabels[tag] ?? tag}</span>`).join("")}</div>`;
 }
 
+function renderPhaseBreakdown(stats) {
+  const pc = stats.phase_career;
+  if (!pc || !pc.by_material_state) return "";
+
+  function phasePct(bin) {
+    const h = bin?.memory_hits_w ?? 0;
+    const m = bin?.memory_misses_w ?? 0;
+    if (h + m === 0) return "—";
+    return `${((h / (h + m)) * 100).toFixed(0)}%`;
+  }
+
+  const mat = pc.by_material_state;
+  const cap = pc.by_capture_quarter;
+  const info = pc.by_info_state;
+
+  const hasMatData = mat && Object.values(mat).some(b => (b.memory_hits_w ?? 0) + (b.memory_misses_w ?? 0) > 0);
+  if (!hasMatData) return "";
+
+  return `
+    <div class="phase-breakdown">
+      <div class="phase-lens">
+        <span class="phase-lens-title" data-tooltip="Memory accuracy broken down by your material position when the memory test happened">By Position:</span>
+        <span class="phase-pill phase-behind">Behind ${phasePct(mat.behind)}</span>
+        <span class="phase-pill phase-even">Even ${phasePct(mat.even)}</span>
+        <span class="phase-pill phase-ahead">Ahead ${phasePct(mat.ahead)}</span>
+        <span class="phase-pill phase-dominant">Dominant ${phasePct(mat.dominant)}</span>
+      </div>
+      ${cap ? `<div class="phase-lens">
+        <span class="phase-lens-title" data-tooltip="Memory accuracy by game progress (quartiles of your total captures)">By Progress:</span>
+        <span class="phase-pill">Q1 ${phasePct(cap.q1)}</span>
+        <span class="phase-pill">Q2 ${phasePct(cap.q2)}</span>
+        <span class="phase-pill">Q3 ${phasePct(cap.q3)}</span>
+        <span class="phase-pill">Q4 ${phasePct(cap.q4)}</span>
+      </div>` : ""}
+      ${info ? `<div class="phase-lens">
+        <span class="phase-lens-title" data-tooltip="Memory accuracy by how much of the enemy army you'd already mapped">By Fog:</span>
+        <span class="phase-pill">Deep Fog ${phasePct(info.deep_fog)}</span>
+        <span class="phase-pill">Partial ${phasePct(info.partial)}</span>
+        <span class="phase-pill">Known ${phasePct(info.known)}</span>
+      </div>` : ""}
+    </div>
+  `;
+}
+
 function renderHeader(player, stats) {
   const el = document.getElementById("profile-header");
   const totalGames = stats ? (stats.wins + stats.losses + stats.draws) : 0;
@@ -199,7 +243,7 @@ function renderStats(stats) {
           ? `~${stats.memory_scouting.half_life_moves} moves`
           : "—",
         "Estimated moves after a reveal before your accuracy drops to 50% — lower = faster forgetting"],
-    ], extraAfter: renderScoutingTags(stats.memory_scouting ?? {}) },
+    ], extraAfter: renderScoutingTags(stats.memory_scouting ?? {}) + renderPhaseBreakdown(stats) },
     { title: "Endgame & Clutch", items: [
       ["Marathon Win Rate", stats.marathon_games > 0 ? `${((stats.marathon_wins / stats.marathon_games) * 100).toFixed(0)}%` : "—", "Win rate in long games (60+ total moves)"],
       ["Win by Flag %", stats.wins > 0 ? `${((stats.wins_by_flag / stats.wins) * 100).toFixed(0)}%` : "—", "% of your wins by capturing the enemy Flag (vs. resignation or no-moves-left)"],

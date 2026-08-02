@@ -1082,6 +1082,16 @@ button:active:not(:disabled) {
   color: rgba(255, 255, 255, 0.75);
 }
 
+/* Phase breakdown display */
+.phase-breakdown { margin: 0.75rem 0; padding: 0.5rem 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.phase-lens { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.phase-lens-title { font-size: 0.7rem; opacity: 0.6; min-width: 75px; position: relative; cursor: help; }
+.phase-pill { font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 3px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); }
+.phase-behind { border-color: rgba(200,100,100,0.4); }
+.phase-even { border-color: rgba(200,200,100,0.4); }
+.phase-ahead { border-color: rgba(100,200,100,0.4); }
+.phase-dominant { border-color: rgba(100,150,255,0.4); }
+
 .stat-item, .achievement-item {
   position: relative;
   z-index: auto;
