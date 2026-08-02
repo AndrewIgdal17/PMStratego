@@ -366,11 +366,10 @@ Deno.serve(async (req) => {
     p2_in_enemy: number;
   }> = [];
 
-  // INVARIANT 3: bidirectional reveal sets
-  const knownBySlot1 = new Set<string>();
-  const knownBySlot2 = new Set<string>();
-  const infoEdgeP1: number[] = [];
-  const infoEdgeP2: number[] = [];
+  const infoEdgeBySlot: { slot1: number[]; slot2: number[] } = {
+    slot1: [],
+    slot2: [],
+  };
 
   function recordDeath(pieceId: string, moveNumber: number): void {
     const ps = pieceStats.get(pieceId);
@@ -467,16 +466,6 @@ Deno.serve(async (req) => {
         killChains[2].current = 0;
       }
 
-      // Info Edge — attacker learns defender; defender learns attacker
-      if (m.player_slot === 1) {
-        if (m.defender_piece_id) knownBySlot1.add(m.defender_piece_id);
-        knownBySlot2.add(m.piece_id);
-      } else {
-        if (m.defender_piece_id) knownBySlot2.add(m.defender_piece_id);
-        knownBySlot1.add(m.piece_id);
-      }
-      infoEdgeP1.push(knownBySlot1.size - knownBySlot2.size);
-      infoEdgeP2.push(knownBySlot2.size - knownBySlot1.size);
     }
 
     // Territory sample AFTER combat deaths (INVARIANT 4)
@@ -587,7 +576,7 @@ Deno.serve(async (req) => {
     flag_proximity: { slot1: flagProximity[1], slot2: flagProximity[2] },
     territory_timeline: territoryTimeline,
     think_times: thinkTimes,
-    info_edge_curve: { slot1: infoEdgeP1, slot2: infoEdgeP2 },
+    info_edge_curve: infoEdgeBySlot,
     // phase_stats filled after per-slot loop (Task 3–4)
   };
 
@@ -688,6 +677,8 @@ Deno.serve(async (req) => {
       pieceByIdIw,
       totalMoves,
     );
+
+    infoEdgeBySlot[slot === 1 ? "slot1" : "slot2"] = iw.infoEdgeCurve;
 
     const revealAttacks = iw.revealAttacks;
     const revealWins = iw.revealWins;

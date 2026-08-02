@@ -199,7 +199,7 @@ function renderInfoEdge(infoEdge, slot) {
   renderLineChart(
     "game-info-edge",
     "Information Edge",
-    "Known enemy pieces minus pieces the enemy knows about you, after each combat. Positive = you hold the fog advantage.",
+    "Asymmetric knowledge advantage after each combat: Scout inferences + elimination deductions you hold minus those the enemy holds. Pure combat reveals are symmetric and do not move this curve.",
     series,
     null,
   );

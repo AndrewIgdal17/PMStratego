@@ -79,6 +79,20 @@ export function ledgerMovableAliveCount(ledger: KnowledgeLedger): number {
   return n;
 }
 
+/** Count ledger entries gained via one-directional sources only. */
+export function asymmetricKnowledgeCount(ledger: KnowledgeLedger): number {
+  let n = 0;
+  for (const e of ledger.values()) {
+    if (
+      e.reveal_source === "movement_inference" ||
+      e.reveal_source === "elimination_deduction"
+    ) {
+      n++;
+    }
+  }
+  return n;
+}
+
 export function movableRank(rank: string): boolean {
   return rank !== "BOMB" && rank !== "FLAG";
 }
@@ -1213,7 +1227,10 @@ export function runInformationWarfarePass(
     }
 
     if (m.move_type === "attack" && m.outcome) {
-      infoEdgeCurve.push(myLedger.size - theirLedger.size);
+      infoEdgeCurve.push(
+        asymmetricKnowledgeCount(myLedger) -
+          asymmetricKnowledgeCount(theirLedger),
+      );
     }
 
     if (m.move_type === "attack" && m.outcome) {

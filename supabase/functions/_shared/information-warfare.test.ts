@@ -8,6 +8,8 @@ import {
   createLedger,
   movableRank,
   applyLedgerUpdatesFromMove,
+  asymmetricKnowledgeCount,
+  runInformationWarfarePass,
   emitMemoryTestsForAttack,
   buildMemoryScouting,
   mergeMemoryScoutingWithCareer,
@@ -18,6 +20,7 @@ import {
   mergePhaseCareer,
   emptyPhaseStats,
   type LegalMove,
+  type MoveLike,
   type PieceLike,
   type PhaseEvent,
 } from "./information-warfare.ts";
@@ -499,4 +502,63 @@ Deno.test("combat learn tags combat_as_attacker / combat_as_defender", () => {
   );
   assertEquals(my.get("them")!.reveal_source, "combat_as_attacker");
   assertEquals(their.get("me")!.reveal_source, "combat_as_defender");
+});
+
+Deno.test("asymmetricKnowledgeCount ignores combat sources", () => {
+  const L = createLedger();
+  learnPiece(L, "a", "5", 1, 1, 1, "combat_as_attacker");
+  learnPiece(L, "b", "9", 2, 2, 2, "movement_inference");
+  learnPiece(L, "c", "FLAG", 3, 3, 3, "elimination_deduction");
+  assertEquals(asymmetricKnowledgeCount(L), 2);
+});
+
+Deno.test("info edge stays 0 across pure combat (symmetric)", () => {
+  const pieces: PieceLike[] = [
+    { id: "a1", player_slot: 1, rank: "3", alive: true, row_idx: 6, col_idx: 0 },
+    { id: "a2", player_slot: 1, rank: "4", alive: true, row_idx: 6, col_idx: 1 },
+    { id: "b1", player_slot: 2, rank: "5", alive: true, row_idx: 3, col_idx: 0 },
+    { id: "b2", player_slot: 2, rank: "6", alive: true, row_idx: 3, col_idx: 1 },
+  ];
+  const pieceById = new Map(pieces.map((p) => [p.id, p]));
+  const moves: MoveLike[] = [
+    {
+      piece_id: "a1", player_slot: 1, from_row: 6, from_col: 0, to_row: 3, to_col: 0,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "3",
+      defender_rank: "5", defender_piece_id: "b1", move_number: 1,
+    },
+    {
+      piece_id: "b2", player_slot: 2, from_row: 3, from_col: 1, to_row: 6, to_col: 1,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "6",
+      defender_rank: "4", defender_piece_id: "a2", move_number: 2,
+    },
+  ];
+  const iw = runInformationWarfarePass(1, moves, pieces, pieceById, 2);
+  assertEquals(iw.infoEdgeCurve.every((v) => v === 0), true);
+});
+
+Deno.test("info edge moves +1 when enemy Scout long-moves", () => {
+  const pieces: PieceLike[] = [
+    { id: "me", player_slot: 1, rank: "5", alive: true, row_idx: 7, col_idx: 0 },
+    { id: "escout", player_slot: 2, rank: "9", alive: true, row_idx: 2, col_idx: 0 },
+  ];
+  const pieceById = new Map(pieces.map((p) => [p.id, p]));
+  const moves: MoveLike[] = [
+    {
+      piece_id: "escout", player_slot: 2, from_row: 2, from_col: 0, to_row: 5, to_col: 0,
+      move_type: "move", outcome: null, attacker_rank: null, defender_rank: null,
+      defender_piece_id: null, move_number: 1,
+    },
+    {
+      piece_id: "me", player_slot: 1, from_row: 7, from_col: 0, to_row: 6, to_col: 0,
+      move_type: "move", outcome: null, attacker_rank: null, defender_rank: null,
+      defender_piece_id: null, move_number: 2,
+    },
+    {
+      piece_id: "me", player_slot: 1, from_row: 6, from_col: 0, to_row: 5, to_col: 0,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "5",
+      defender_rank: "9", defender_piece_id: "escout", move_number: 3,
+    },
+  ];
+  const iw = runInformationWarfarePass(1, moves, pieces, pieceById, 3);
+  assertEquals(iw.infoEdgeCurve[iw.infoEdgeCurve.length - 1], 1);
 });
