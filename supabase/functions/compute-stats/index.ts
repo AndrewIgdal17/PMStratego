@@ -366,6 +366,10 @@ Deno.serve(async (req) => {
     2: emptyPhaseStats(),
   };
   const memoryEventsBySlot: Record<1 | 2, MemoryEvent[]> = { 1: [], 2: [] };
+  const memoryScoresBySlot: { slot1: number | null; slot2: number | null } = {
+    slot1: null,
+    slot2: null,
+  };
   const pieceByIdIw = new Map<string, PieceLike>(
     (pieces as Piece[]).map((p) => [p.id, p]),
   );
@@ -752,6 +756,9 @@ Deno.serve(async (req) => {
     const spyFirstCombatMove = iw.spyFirstCombatMove;
 
     memoryEventsBySlot[slot] = iw.memory.events;
+    const memoryWeightTotal = iw.memory.hitsW + iw.memory.missesW;
+    memoryScoresBySlot[slot === 1 ? "slot1" : "slot2"] =
+      memoryWeightTotal > 0 ? iw.memory.hitsW / memoryWeightTotal : null;
 
     // === TRADE EFFICIENCY ===
     let tradeValue = 0;
@@ -1407,9 +1414,10 @@ Deno.serve(async (req) => {
     slot2: phaseStatsBySlot[2],
   };
   story.memory_moments = {
-    slot1: topMemoryMoments(memoryEventsBySlot[1]),
-    slot2: topMemoryMoments(memoryEventsBySlot[2]),
+    slot1: topMemoryMoments(memoryEventsBySlot[1], 5),
+    slot2: topMemoryMoments(memoryEventsBySlot[2], 5),
   };
+  story.memory_scores = memoryScoresBySlot;
 
   await supabase.from("game_summaries").upsert(
     {

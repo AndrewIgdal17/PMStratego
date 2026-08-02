@@ -50,3 +50,28 @@ export function materialSparkline(curve, playerSlot) {
     <span class="curve-badge" style="color:${badgeColor}">${badge}</span>
   </div>`;
 }
+
+export function infoEdgeSparkline(curve) {
+  if (!curve || curve.length === 0) {
+    return `<div class="info-edge-empty">No combat information exchanges</div>`;
+  }
+  const w = 320;
+  const h = 64;
+  const pad = 4;
+  const min = Math.min(...curve, 0);
+  const max = Math.max(...curve, 0);
+  const span = Math.max(max - min, 1);
+  const pts = curve
+    .map((v, i) => {
+      const x = pad + (i / Math.max(curve.length - 1, 1)) * (w - 2 * pad);
+      const y = pad + (1 - (v - min) / span) * (h - 2 * pad);
+      return `${x},${y}`;
+    })
+    .join(" ");
+  const zeroY = pad + (1 - (0 - min) / span) * (h - 2 * pad);
+  return `
+    <svg viewBox="0 0 ${w} ${h}" class="info-edge-spark">
+      <line x1="${pad}" y1="${zeroY}" x2="${w - pad}" y2="${zeroY}" stroke="rgba(255,255,255,0.2)" stroke-width="1"/>
+      <polyline fill="none" stroke="#6bcb8a" stroke-width="1.5" points="${pts}"/>
+    </svg>`;
+}

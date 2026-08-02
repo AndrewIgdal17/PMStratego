@@ -734,7 +734,12 @@ export function accumulateMemoryTests(
 
 export function topMemoryMoments(events: MemoryEvent[], limit = 5): MemoryEvent[] {
   return [...events]
-    .sort((a, b) => b.weight - a.weight || b.move_number - a.move_number)
+    .sort(
+      (a, b) =>
+        b.weight - a.weight ||
+        (a.hit === b.hit ? 0 : a.hit ? 1 : -1) ||
+        b.move_number - a.move_number,
+    )
     .slice(0, limit);
 }
 
