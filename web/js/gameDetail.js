@@ -273,27 +273,79 @@ function renderPieceCareers(careers, slot) {
 function renderTerritory(timeline) {
   if (!timeline || timeline.length < 2) return;
   const el = document.getElementById("game-territory");
+
+  // Normalize legacy { p1_in_enemy, p2_in_enemy } samples to lane shape
+  const samples = timeline.map((t) => {
+    if (t.p1 && t.p2) return t;
+    const p1Total = t.p1_in_enemy ?? 0;
+    const p2Total = t.p2_in_enemy ?? 0;
+    return {
+      move_number: t.move_number,
+      p1: { left: 0, center: 0, right: 0, total: p1Total },
+      p2: { left: 0, center: 0, right: 0, total: p2Total },
+    };
+  });
+
   const w = 520;
-  const h = 110;
+  const h = 140;
   const pad = 16;
   const labelPad = 28;
+  const legendH = 28;
+  const chartH = h - legendH;
   const maxPieces = Math.max(
-    ...timeline.map((t) => Math.max(t.p1_in_enemy, t.p2_in_enemy)),
+    ...samples.map((t) => Math.max(t.p1.total, t.p2.total, t.p1.left, t.p1.center, t.p1.right, t.p2.left, t.p2.center, t.p2.right)),
     1,
   );
-  const yPos = (v) => pad + (1 - v / maxPieces) * (h - 2 * pad);
-  const xPos = (i) => labelPad + (i / Math.max(timeline.length - 1, 1)) * (w - labelPad - pad);
-  const p1 = timeline.map((t, i) => `${xPos(i)},${yPos(t.p1_in_enemy)}`).join(" ");
-  const p2 = timeline.map((t, i) => `${xPos(i)},${yPos(t.p2_in_enemy)}`).join(" ");
+  const yPos = (v) => pad + (1 - v / maxPieces) * (chartH - 2 * pad);
+  const xPos = (i) => labelPad + (i / Math.max(samples.length - 1, 1)) * (w - labelPad - pad);
+  const poly = (getter) =>
+    samples.map((t, i) => `${xPos(i)},${yPos(getter(t))}`).join(" ");
+
+  // Lane lines (thin, semi-transparent) behind totals
+  const lanes = [
+    { key: "left", p1: "rgba(20,120,70,0.55)", p2: "rgba(140,40,40,0.55)" },
+    { key: "center", p1: "rgba(60,170,110,0.5)", p2: "rgba(190,70,70,0.5)" },
+    { key: "right", p1: "rgba(130,220,170,0.45)", p2: "rgba(230,130,130,0.45)" },
+  ];
+  const lanePolys = lanes
+    .map(
+      (lane) => `
+      <polyline points="${poly((t) => t.p1[lane.key])}" fill="none" stroke="${lane.p1}" stroke-width="1"/>
+      <polyline points="${poly((t) => t.p2[lane.key])}" fill="none" stroke="${lane.p2}" stroke-width="1"/>
+    `,
+    )
+    .join("");
+
+  const p1Total = poly((t) => t.p1.total);
+  const p2Total = poly((t) => t.p2.total);
+  const legendY = chartH + 10;
+
   el.innerHTML = `
-    <h3>Territory Control <span class="stat-help" data-tooltip="Alive pieces in enemy half sampled every 20 moves (alive-at-sample-time, not final state). Shows invasion pressure over time.">?</span></h3>
+    <h3>Territory Control by Lane <span class="stat-help" data-tooltip="How many of each player's pieces are in the enemy half of the board, broken down by left (cols 0–3), center (cols 4–5), and right (cols 6–9) lanes. Shows flanking maneuvers and corridor control.">?</span></h3>
     <svg viewBox="0 0 ${w} ${h}" class="detail-curve">
       <text x="2" y="${pad + 4}" font-size="9" fill="rgba(255,255,255,0.45)">${maxPieces}</text>
-      <text x="2" y="${h - pad + 2}" font-size="9" fill="rgba(255,255,255,0.45)">0</text>
-      <polyline points="${p1}" fill="none" stroke="rgba(100,200,150,0.85)" stroke-width="1.5"/>
-      <polyline points="${p2}" fill="none" stroke="rgba(200,100,100,0.85)" stroke-width="1.5"/>
-      <text x="${w - pad}" y="${pad}" font-size="8" fill="rgba(100,200,150,0.8)" text-anchor="end">P1 in enemy half</text>
-      <text x="${w - pad}" y="${pad + 12}" font-size="8" fill="rgba(200,100,100,0.8)" text-anchor="end">P2 in enemy half</text>
+      <text x="2" y="${chartH - pad + 2}" font-size="9" fill="rgba(255,255,255,0.45)">0</text>
+      ${lanePolys}
+      <polyline points="${p1Total}" fill="none" stroke="rgba(100,200,150,0.95)" stroke-width="2.5"/>
+      <polyline points="${p2Total}" fill="none" stroke="rgba(200,100,100,0.95)" stroke-width="2.5"/>
+      <g font-size="7.5" fill="rgba(255,255,255,0.7)">
+        <line x1="28" y1="${legendY}" x2="42" y2="${legendY}" stroke="rgba(20,120,70,0.8)" stroke-width="1.5"/>
+        <text x="45" y="${legendY + 3}">P1 L</text>
+        <line x1="72" y1="${legendY}" x2="86" y2="${legendY}" stroke="rgba(60,170,110,0.8)" stroke-width="1.5"/>
+        <text x="89" y="${legendY + 3}">P1 C</text>
+        <line x1="116" y1="${legendY}" x2="130" y2="${legendY}" stroke="rgba(130,220,170,0.8)" stroke-width="1.5"/>
+        <text x="133" y="${legendY + 3}">P1 R</text>
+        <line x1="160" y1="${legendY}" x2="174" y2="${legendY}" stroke="rgba(100,200,150,0.95)" stroke-width="2.5"/>
+        <text x="177" y="${legendY + 3}">P1 tot</text>
+        <line x1="220" y1="${legendY}" x2="234" y2="${legendY}" stroke="rgba(140,40,40,0.8)" stroke-width="1.5"/>
+        <text x="237" y="${legendY + 3}">P2 L</text>
+        <line x1="264" y1="${legendY}" x2="278" y2="${legendY}" stroke="rgba(190,70,70,0.8)" stroke-width="1.5"/>
+        <text x="281" y="${legendY + 3}">P2 C</text>
+        <line x1="308" y1="${legendY}" x2="322" y2="${legendY}" stroke="rgba(230,130,130,0.8)" stroke-width="1.5"/>
+        <text x="325" y="${legendY + 3}">P2 R</text>
+        <line x1="352" y1="${legendY}" x2="366" y2="${legendY}" stroke="rgba(200,100,100,0.95)" stroke-width="2.5"/>
+        <text x="369" y="${legendY + 3}">P2 tot</text>
+      </g>
     </svg>
   `;
 }

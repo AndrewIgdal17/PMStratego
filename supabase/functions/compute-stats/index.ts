@@ -360,10 +360,17 @@ Deno.serve(async (req) => {
     positionsByPiece.set(p.id, { row: p.row_idx, col: p.col_idx });
   }
   const aliveSet = new Set((pieces as Piece[]).map((p) => p.id));
+  type LaneCounts = { left: number; center: number; right: number; total: number };
+  const emptyLanes = (): LaneCounts => ({ left: 0, center: 0, right: 0, total: 0 });
+  const laneOf = (col: number): keyof Omit<LaneCounts, "total"> => {
+    if (col <= 3) return "left";
+    if (col <= 5) return "center";
+    return "right";
+  };
   const territoryTimeline: Array<{
     move_number: number;
-    p1_in_enemy: number;
-    p2_in_enemy: number;
+    p1: LaneCounts;
+    p2: LaneCounts;
   }> = [];
 
   const infoEdgeBySlot: { slot1: number[]; slot2: number[] } = {
@@ -472,21 +479,28 @@ Deno.serve(async (req) => {
 
     }
 
-    // Territory sample AFTER combat deaths (INVARIANT 4)
-    if (m.move_number % 20 === 0 || m.move_number === totalMoves) {
-      let p1InEnemy = 0;
-      let p2InEnemy = 0;
+    // Territory sample AFTER combat deaths (INVARIANT 4) — every move, by lane
+    {
+      const p1 = emptyLanes();
+      const p2 = emptyLanes();
       for (const [pid, pos] of positionsByPiece) {
         if (!aliveSet.has(pid)) continue;
         const piece = pieceById.get(pid);
         if (!piece) continue;
-        if (piece.player_slot === 1 && pos.row <= 4) p1InEnemy++;
-        if (piece.player_slot === 2 && pos.row >= 5) p2InEnemy++;
+        const lane = laneOf(pos.col);
+        if (piece.player_slot === 1 && pos.row <= 4) {
+          p1[lane]++;
+          p1.total++;
+        }
+        if (piece.player_slot === 2 && pos.row >= 5) {
+          p2[lane]++;
+          p2.total++;
+        }
       }
       territoryTimeline.push({
         move_number: m.move_number,
-        p1_in_enemy: p1InEnemy,
-        p2_in_enemy: p2InEnemy,
+        p1,
+        p2,
       });
     }
   }
