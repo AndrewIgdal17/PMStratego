@@ -70,6 +70,8 @@ interface Piece {
   player_slot: number;
   rank: string;
   alive: boolean;
+  row_idx: number;
+  col_idx: number;
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -136,7 +138,7 @@ Deno.serve(async (req) => {
 
   const { data: pieces, error: piecesError } = await supabase
     .from("pieces")
-    .select("id, player_slot, rank, alive")
+    .select("id, player_slot, rank, alive, row_idx, col_idx")
     .eq("game_id", game_id);
 
   if (movesError || piecesError || !moves || !pieces) {
