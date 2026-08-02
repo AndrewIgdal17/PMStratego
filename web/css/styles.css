@@ -1153,3 +1153,20 @@ button:active:not(:disabled) {
 .lb-tab { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--ink); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer; }
 .lb-tab.active { background: rgba(100,200,150,0.2); border-color: rgba(100,200,150,0.5); }
 .lb-tab:hover { background: rgba(255,255,255,0.1); }
+
+/* Game detail page */
+.game-detail-page { max-width: 640px; }
+.game-detail-subtitle { font-size: 0.85rem; opacity: 0.7; margin-bottom: 0.5rem; }
+.game-detail-view-toggle { font-size: 0.8rem; margin-bottom: 1rem; }
+.game-detail-view-toggle a { opacity: 0.6; }
+.game-detail-view-toggle a.active { opacity: 1; font-weight: 600; }
+.story-highlights { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem; }
+.highlight-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.65rem; background: rgba(255,255,255,0.04); border-radius: 4px; }
+.highlight-icon { font-size: 1.05rem; }
+.highlight-text { font-size: 0.85rem; flex: 1; }
+.detail-curve { width: 100%; height: auto; max-height: 170px; margin: 0.25rem 0 1.25rem; }
+.piece-career-table, .phase-table { font-size: 0.8rem; }
+.piece-career-table td, .piece-career-table th,
+.phase-table td, .phase-table th { padding: 0.35rem 0.5rem; }
+.history-table tr.clickable-row { cursor: pointer; }
+.history-table tr.clickable-row:hover { background: rgba(255,255,255,0.04); }
