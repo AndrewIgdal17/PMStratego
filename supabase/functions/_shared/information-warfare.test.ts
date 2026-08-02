@@ -9,6 +9,10 @@ import {
   movableRank,
   applyLedgerUpdatesFromMove,
   emitMemoryTestsForAttack,
+  buildMemoryScouting,
+  mergeMemoryScoutingWithCareer,
+  emptyMemoryAccum,
+  accumulateMemoryTests,
   type LegalMove,
   type PieceLike,
 } from "./information-warfare.ts";
@@ -167,4 +171,103 @@ Deno.test("ambush denominator includes never-moved Bombs", () => {
 Deno.test("isCorrectCounter Marshal rejects General", () => {
   assertEquals(isCorrectCounter("2", "1"), false);
   assertEquals(isCorrectCounter("10", "1"), true);
+});
+
+Deno.test("buildMemoryScouting: half-life from age buckets", () => {
+  const blob = buildMemoryScouting(
+    8, 2, 8, 2, 3, 2, 1, 0, 2, 3,
+    {
+      "0-5": { hits: 2, misses: 3 },
+      "6-15": { hits: 4, misses: 1 },
+      "16-30": { hits: 2, misses: 0 },
+      "31+": { hits: 0, misses: 0 },
+    },
+    [5, 6, 7, 8, 9, 10, 11, 12],
+    [4, 5],
+  );
+  assertEquals(blob.half_life_moves, 2.5);
+  assertEquals(blob.score, 0.8);
+  assertEquals(blob.n_tests, 10);
+  assertEquals(blob.bomb_retention, 0.6);
+  assertEquals(blob.track_rate, 2 / 5);
+  assertEquals(blob.tags.includes("short_fuse"), true);
+  assertEquals(blob.tags.includes("steel_trap"), false);
+});
+
+Deno.test("buildMemoryScouting: steel_trap and bomb_amnesia tags", () => {
+  const blob = buildMemoryScouting(
+    9, 1, 9, 1, 1, 4, 0, 0, 0, 0,
+    {
+      "0-5": { hits: 5, misses: 1 },
+      "6-15": { hits: 4, misses: 0 },
+      "16-30": { hits: 0, misses: 0 },
+      "31+": { hits: 0, misses: 0 },
+    },
+    Array(9).fill(6),
+    [5],
+  );
+  assertEquals(blob.tags.includes("steel_trap"), true);
+  assertEquals(blob.tags.includes("bomb_amnesia"), true);
+  assertEquals(blob.half_life_moves, null);
+});
+
+Deno.test("mergeMemoryScoutingWithCareer: sums career counters and age buckets", () => {
+  const game = emptyMemoryAccum();
+  accumulateMemoryTests(game, [{
+    test_id: "known_win",
+    hit: true,
+    weight: 3,
+    age: 4,
+    move_number: 10,
+    attacker_rank: "3",
+    known_rank: "5",
+    defender_piece_id: "e1",
+    load: 7,
+  }]);
+  accumulateMemoryTests(game, [{
+    test_id: "track_strike",
+    hit: false,
+    weight: 2,
+    age: 12,
+    move_number: 20,
+    attacker_rank: "4",
+    known_rank: "6",
+    defender_piece_id: "e2",
+    load: 8,
+  }]);
+
+  const prev = buildMemoryScouting(
+    5, 5, 5, 5, 2, 3, 1, 0, 1, 1,
+    {
+      "0-5": { hits: 3, misses: 2 },
+      "6-15": { hits: 2, misses: 3 },
+      "16-30": { hits: 0, misses: 0 },
+      "31+": { hits: 0, misses: 0 },
+    },
+    Array(5).fill(6),
+    Array(5).fill(7),
+  );
+
+  const merged = mergeMemoryScoutingWithCareer(
+    prev,
+    game,
+    5 + game.hitsW,
+    5 + game.missesW,
+    5 + game.hits,
+    5 + game.misses,
+    2 + game.bombHits,
+    3 + game.bombMisses,
+    1 + game.marshalHits,
+    0 + game.marshalMisses,
+    1 + game.trackHits,
+    1 + game.trackMisses,
+    false,
+  );
+
+  assertEquals(merged.n_tests, 12);
+  assertEquals(merged.miss_rate_by_age["0-5"].hits, 4);
+  assertEquals(merged.miss_rate_by_age["0-5"].misses, 2);
+  assertEquals(merged.miss_rate_by_age["6-15"].misses, 4);
+  assertEquals(merged.marshal_hits, 1);
+  assertEquals(merged.track_rate, 1 / 3);
 });

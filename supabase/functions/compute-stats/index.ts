@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
+  mergeMemoryScoutingWithCareer,
   runInformationWarfarePass,
   topMemoryMoments,
   type MemoryEvent,
@@ -1172,6 +1173,31 @@ Deno.serve(async (req) => {
           (won ? iw.silentMajority : 0),
         silent_majority_losses_sum: Number(stats.silent_majority_losses_sum ?? 0) +
           (!won && game.winner_slot != null ? iw.silentMajority : 0),
+        memory_hits_w: Number(stats.memory_hits_w ?? 0) + iw.memory.hitsW,
+        memory_misses_w: Number(stats.memory_misses_w ?? 0) + iw.memory.missesW,
+        memory_hits: (stats.memory_hits ?? 0) + iw.memory.hits,
+        memory_misses: (stats.memory_misses ?? 0) + iw.memory.misses,
+        memory_bomb_hits: (stats.memory_bomb_hits ?? 0) + iw.memory.bombHits,
+        memory_bomb_misses: (stats.memory_bomb_misses ?? 0) + iw.memory.bombMisses,
+        memory_track_hits: (stats.memory_track_hits ?? 0) + iw.memory.trackHits,
+        memory_track_misses: (stats.memory_track_misses ?? 0) + iw.memory.trackMisses,
+        memory_scouting: mergeMemoryScoutingWithCareer(
+          stats.memory_scouting,
+          iw.memory,
+          Number(stats.memory_hits_w ?? 0) + iw.memory.hitsW,
+          Number(stats.memory_misses_w ?? 0) + iw.memory.missesW,
+          (stats.memory_hits ?? 0) + iw.memory.hits,
+          (stats.memory_misses ?? 0) + iw.memory.misses,
+          (stats.memory_bomb_hits ?? 0) + iw.memory.bombHits,
+          (stats.memory_bomb_misses ?? 0) + iw.memory.bombMisses,
+          Number((stats.memory_scouting as { marshal_hits?: number })?.marshal_hits ?? 0) +
+            iw.memory.marshalHits,
+          Number((stats.memory_scouting as { marshal_misses?: number })?.marshal_misses ?? 0) +
+            iw.memory.marshalMisses,
+          (stats.memory_track_hits ?? 0) + iw.memory.trackHits,
+          (stats.memory_track_misses ?? 0) + iw.memory.trackMisses,
+          game.is_bot_game ?? false,
+        ),
         updated_at: new Date().toISOString(),
       })
       .eq("player_id", playerId);

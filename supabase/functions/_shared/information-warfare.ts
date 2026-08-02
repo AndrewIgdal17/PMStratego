@@ -738,6 +738,163 @@ export function topMemoryMoments(events: MemoryEvent[], limit = 5): MemoryEvent[
     .slice(0, limit);
 }
 
+export type MemoryScoutingBlob = {
+  score: number | null;
+  n_tests: number;
+  bomb_retention: number | null;
+  marshal_retention: number | null;
+  /** Career counters persisted inside JSONB (no dedicated SQL columns for marshal). */
+  marshal_hits: number;
+  marshal_misses: number;
+  track_rate: number | null;
+  miss_rate_by_age: Record<string, { hits: number; misses: number }>;
+  avg_load_at_miss: number | null;
+  avg_load_at_hit: number | null;
+  half_life_moves: number | null;
+  tags: string[];
+  vs_bot_tests?: number;
+};
+
+function avg(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+function halfLifeFromBuckets(
+  buckets: Record<string, { hits: number; misses: number }>,
+): number | null {
+  const order: Array<{ key: string; mid: number }> = [
+    { key: "0-5", mid: 2.5 },
+    { key: "6-15", mid: 10.5 },
+    { key: "16-30", mid: 23 },
+    { key: "31+", mid: 40 },
+  ];
+  for (const { key, mid } of order) {
+    const b = buckets[key];
+    const n = (b?.hits ?? 0) + (b?.misses ?? 0);
+    if (n === 0) continue;
+    if ((b?.misses ?? 0) / n >= 0.5) return mid;
+  }
+  return null;
+}
+
+export function buildMemoryScouting(
+  hitsW: number,
+  missesW: number,
+  hits: number,
+  misses: number,
+  bombHits: number,
+  bombMisses: number,
+  marshalHits: number,
+  marshalMisses: number,
+  trackHits: number,
+  trackMisses: number,
+  missByAge: Record<string, { hits: number; misses: number }>,
+  loadAtHit: number[],
+  loadAtMiss: number[],
+): MemoryScoutingBlob {
+  const n = hits + misses;
+  const score = hitsW + missesW > 0 ? hitsW / (hitsW + missesW) : null;
+  const bombN = bombHits + bombMisses;
+  const marshalN = marshalHits + marshalMisses;
+  const trackN = trackHits + trackMisses;
+  const bombRetention = bombN > 0 ? bombHits / bombN : null;
+  const marshalRetention = marshalN > 0 ? marshalHits / marshalN : null;
+  const trackRate = trackN > 0 ? trackHits / trackN : null;
+  const halfLife = halfLifeFromBuckets(missByAge);
+
+  const tags: string[] = [];
+  if (score !== null && score >= 0.85 && n >= 10) tags.push("steel_trap");
+  if (bombRetention !== null && bombRetention <= 0.4 && bombN >= 5) tags.push("bomb_amnesia");
+  if (trackRate !== null && trackRate <= 0.4 && trackN >= 4) tags.push("loses_track");
+  if (halfLife !== null && halfLife <= 10) tags.push("short_fuse");
+
+  return {
+    score,
+    n_tests: n,
+    bomb_retention: bombRetention,
+    marshal_retention: marshalRetention,
+    marshal_hits: marshalHits,
+    marshal_misses: marshalMisses,
+    track_rate: trackRate,
+    miss_rate_by_age: missByAge,
+    avg_load_at_miss: avg(loadAtMiss),
+    avg_load_at_hit: avg(loadAtHit),
+    half_life_moves: halfLife,
+    tags,
+  };
+}
+
+export function mergeMemoryScoutingWithCareer(
+  existing: MemoryScoutingBlob | Record<string, unknown> | null | undefined,
+  game: MemoryGameAccum,
+  careerHitsW: number,
+  careerMissesW: number,
+  careerHits: number,
+  careerMisses: number,
+  careerBombHits: number,
+  careerBombMisses: number,
+  careerMarshalHits: number,
+  careerMarshalMisses: number,
+  careerTrackHits: number,
+  careerTrackMisses: number,
+  isBotGame: boolean,
+): MemoryScoutingBlob {
+  const prev = (existing ?? {}) as Partial<MemoryScoutingBlob>;
+  const prevAge = (prev.miss_rate_by_age ?? {}) as Record<
+    string,
+    { hits: number; misses: number }
+  >;
+  const mergedAge: Record<string, { hits: number; misses: number }> = {
+    "0-5": { hits: 0, misses: 0 },
+    "6-15": { hits: 0, misses: 0 },
+    "16-30": { hits: 0, misses: 0 },
+    "31+": { hits: 0, misses: 0 },
+  };
+  for (const key of Object.keys(mergedAge)) {
+    mergedAge[key].hits = (prevAge[key]?.hits ?? 0) + (game.missByAge[key]?.hits ?? 0);
+    mergedAge[key].misses = (prevAge[key]?.misses ?? 0) + (game.missByAge[key]?.misses ?? 0);
+  }
+
+  // Running load averages via synthetic expansion of prior means
+  const priorHits = Math.max(0, careerHits - game.hits);
+  const priorMisses = Math.max(0, careerMisses - game.misses);
+  const loadHits = [
+    ...(prev.avg_load_at_hit != null && priorHits > 0
+      ? Array(priorHits).fill(prev.avg_load_at_hit)
+      : []),
+    ...game.loadAtHit,
+  ];
+  const loadMisses = [
+    ...(prev.avg_load_at_miss != null && priorMisses > 0
+      ? Array(priorMisses).fill(prev.avg_load_at_miss)
+      : []),
+    ...game.loadAtMiss,
+  ];
+
+  const blob = buildMemoryScouting(
+    careerHitsW,
+    careerMissesW,
+    careerHits,
+    careerMisses,
+    careerBombHits,
+    careerBombMisses,
+    careerMarshalHits,
+    careerMarshalMisses,
+    careerTrackHits,
+    careerTrackMisses,
+    mergedAge,
+    loadHits,
+    loadMisses,
+  );
+  if (isBotGame) {
+    blob.vs_bot_tests =
+      Number((prev as { vs_bot_tests?: number }).vs_bot_tests ?? 0) +
+      game.hits + game.misses;
+  }
+  return blob;
+}
+
 export interface IWGameResult {
   // Legacy reveal/avenge (preserve existing player_stats columns)
   revealAttacks: number;
