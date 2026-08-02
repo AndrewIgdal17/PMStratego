@@ -356,9 +356,21 @@ Deno.serve(async (req) => {
 
   // Running positions + alive-at-time (INVARIANT 4)
   const positionsByPiece = new Map<string, { row: number; col: number }>();
-  // Seed with current piece coords (setup for unmoved pieces, including Flag/Bomb)
+  // Seed from first move's from_row/from_col (= setup position); immobile pieces use pieces table
+  const firstMoveByPiece = new Map<string, { row: number; col: number }>();
+  for (const m of moves as Move[]) {
+    if (!firstMoveByPiece.has(m.piece_id)) {
+      firstMoveByPiece.set(m.piece_id, { row: m.from_row, col: m.from_col });
+    }
+  }
   for (const p of pieces as Piece[]) {
-    positionsByPiece.set(p.id, { row: p.row_idx, col: p.col_idx });
+    const firstMove = firstMoveByPiece.get(p.id);
+    if (firstMove) {
+      positionsByPiece.set(p.id, firstMove);
+    } else {
+      // Never moved — correct for Bombs/Flag (final position = setup)
+      positionsByPiece.set(p.id, { row: p.row_idx, col: p.col_idx });
+    }
   }
   const aliveSet = new Set((pieces as Piece[]).map((p) => p.id));
   type LaneCounts = { left: number; center: number; right: number; total: number };
