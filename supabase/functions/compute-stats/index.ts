@@ -3,8 +3,18 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import {
   applyLedgerUpdatesFromMove,
+  applyMoveToBoard,
+  buildInitialBoard,
   createLedger,
+  accumulateMemoryTests,
+  emitMemoryTestsForAttack,
+  emptyMemoryAccum,
+  listLegalMoves,
+  topMemoryMoments,
+  type MemoryEvent,
   type KnowledgeLedger,
+  type MoveLike,
+  type PieceLike,
   type VacatedSquare,
 } from "../_shared/information-warfare.ts";
 
@@ -363,6 +373,10 @@ Deno.serve(async (req) => {
     1: emptyPhaseStats(),
     2: emptyPhaseStats(),
   };
+  const memoryEventsBySlot: Record<1 | 2, MemoryEvent[]> = { 1: [], 2: [] };
+  const pieceByIdIw = new Map<string, PieceLike>(
+    (pieces as Piece[]).map((p) => [p.id, p]),
+  );
 
   const combatMoves = moves.filter(
     (m: Move) => m.move_type === "attack" && m.outcome,
@@ -731,6 +745,8 @@ Deno.serve(async (req) => {
     const myLedger: KnowledgeLedger = createLedger();
     const theirLedger: KnowledgeLedger = createLedger();
     const myVacated = new Map<string, VacatedSquare>();
+    const memoryAccum = emptyMemoryAccum();
+    const board = buildInitialBoard(pieces as PieceLike[], moves as MoveLike[]);
     /** Legacy alias: enemy piece IDs in myLedger (kept for downstream compatibility). */
     const revealedEnemyIds = new Set<string>();
 
@@ -802,7 +818,17 @@ Deno.serve(async (req) => {
         }
       }
 
-      applyLedgerUpdatesFromMove(m, slot, myLedger, theirLedger, myVacated, pieceById);
+      // Memory tests BEFORE ledger update (defender must already be in myLedger)
+      if (isMyAttack) {
+        const legal = listLegalMoves(board, slot, pieceByIdIw);
+        const memTests = emitMemoryTestsForAttack(
+          m, slot, myLedger, myVacated, legal, pieceByIdIw,
+        );
+        accumulateMemoryTests(memoryAccum, memTests);
+      }
+
+      applyLedgerUpdatesFromMove(m, slot, myLedger, theirLedger, myVacated, pieceByIdIw);
+      applyMoveToBoard(board, m);
 
       // Sync legacy reveal set from myLedger (enemy pieces only)
       for (const [id] of myLedger) {
@@ -810,6 +836,8 @@ Deno.serve(async (req) => {
         if (p && p.player_slot !== slot) revealedEnemyIds.add(id);
       }
     }
+
+    memoryEventsBySlot[slot] = memoryAccum.events;
 
     for (const enemyId of firstRevealedByMe) {
       const ep = pieceById.get(enemyId);
@@ -1419,6 +1447,10 @@ Deno.serve(async (req) => {
   story.phase_stats = {
     slot1: phaseStatsBySlot[1],
     slot2: phaseStatsBySlot[2],
+  };
+  story.memory_moments = {
+    slot1: topMemoryMoments(memoryEventsBySlot[1]),
+    slot2: topMemoryMoments(memoryEventsBySlot[2]),
   };
 
   await supabase.from("game_summaries").upsert(

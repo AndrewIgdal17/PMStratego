@@ -8,6 +8,8 @@ import {
   createLedger,
   movableRank,
   applyLedgerUpdatesFromMove,
+  emitMemoryTestsForAttack,
+  type LegalMove,
   type PieceLike,
 } from "./information-warfare.ts";
 
@@ -74,4 +76,80 @@ Deno.test("bidirectional learn: my attack populates both ledgers", () => {
   );
   assertEquals(my.has("bomb"), true);
   assertEquals(their.has("me"), true);
+});
+
+Deno.test("spy_marshal: Spy HIT; General MISS; Marshal TIE excluded upstream", () => {
+  const my = createLedger();
+  learnPiece(my, "m1", "1", 3, 3, 5);
+  const pieces = new Map<string, PieceLike>([
+    ["spy", { id: "spy", player_slot: 1, rank: "10", alive: true }],
+    ["gen", { id: "gen", player_slot: 1, rank: "2", alive: true }],
+    ["m1", { id: "m1", player_slot: 2, rank: "1", alive: true }],
+  ]);
+  const legal: LegalMove[] = [
+    { piece_id: "spy", to_row: 3, to_col: 3, is_attack: true, defender_piece_id: "m1" },
+    { piece_id: "spy", to_row: 4, to_col: 0, is_attack: false, defender_piece_id: null },
+  ];
+  const spyHit = emitMemoryTestsForAttack(
+    {
+      piece_id: "spy", player_slot: 1, from_row: 4, from_col: 3, to_row: 3, to_col: 3,
+      move_type: "attack", outcome: "ATTACKER_WINS", attacker_rank: "10",
+      defender_rank: "1", defender_piece_id: "m1", move_number: 20,
+    },
+    1, my, new Map(), legal, pieces,
+  );
+  assertEquals(spyHit.some((t) => t.test_id === "spy_marshal" && t.hit), true);
+
+  const genMiss = emitMemoryTestsForAttack(
+    {
+      piece_id: "gen", player_slot: 1, from_row: 4, from_col: 3, to_row: 3, to_col: 3,
+      move_type: "attack", outcome: "DEFENDER_WINS", attacker_rank: "2",
+      defender_rank: "1", defender_piece_id: "m1", move_number: 20,
+    },
+    1, my, new Map(), legal, pieces,
+  );
+  assertEquals(genMiss.some((t) => t.test_id === "spy_marshal" && !t.hit), true);
+});
+
+Deno.test("threat_avoidance: MISS-only on known losing attack; no HIT events", () => {
+  const my = createLedger();
+  learnPiece(my, "bomb", "BOMB", 4, 4, 2);
+  const pieces = new Map<string, PieceLike>([
+    ["scout", { id: "scout", player_slot: 1, rank: "9", alive: true }],
+    ["bomb", { id: "bomb", player_slot: 2, rank: "BOMB", alive: true }],
+  ]);
+  const legal: LegalMove[] = [
+    { piece_id: "scout", to_row: 4, to_col: 4, is_attack: true, defender_piece_id: "bomb" },
+    { piece_id: "scout", to_row: 5, to_col: 0, is_attack: false, defender_piece_id: null },
+  ];
+  const tests = emitMemoryTestsForAttack(
+    {
+      piece_id: "scout", player_slot: 1, from_row: 5, from_col: 4, to_row: 4, to_col: 4,
+      move_type: "attack", outcome: "DEFENDER_WINS", attacker_rank: "9",
+      defender_rank: "BOMB", defender_piece_id: "bomb", move_number: 12,
+    },
+    1, my, new Map(), legal, pieces,
+  );
+  const ta = tests.filter((t) => t.test_id === "threat_avoidance");
+  assertEquals(ta.length, 1);
+  assertEquals(ta[0].hit, false);
+  assertEquals(tests.some((t) => t.test_id === "bomb_correct" && !t.hit), true);
+});
+
+Deno.test("trades excluded from memory tests", () => {
+  const my = createLedger();
+  learnPiece(my, "e", "5", 4, 4, 1);
+  const pieces = new Map<string, PieceLike>([
+    ["a", { id: "a", player_slot: 1, rank: "5", alive: true }],
+    ["e", { id: "e", player_slot: 2, rank: "5", alive: true }],
+  ]);
+  const tests = emitMemoryTestsForAttack(
+    {
+      piece_id: "a", player_slot: 1, from_row: 5, from_col: 4, to_row: 4, to_col: 4,
+      move_type: "attack", outcome: "TIE", attacker_rank: "5",
+      defender_rank: "5", defender_piece_id: "e", move_number: 8,
+    },
+    1, my, new Map(), [], pieces,
+  );
+  assertEquals(tests.length, 0);
 });

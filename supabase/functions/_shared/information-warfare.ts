@@ -467,3 +467,273 @@ export function applyLedgerUpdatesFromMove(
     markPieceDead(theirLedger, m.defender_piece_id);
   }
 }
+
+export type MemoryTestId =
+  | "bomb_correct"
+  | "known_win"
+  | "spy_marshal"
+  | "track_strike"
+  | "threat_avoidance";
+
+export interface MemoryTestResult {
+  test_id: MemoryTestId;
+  hit: boolean;
+  weight: number;
+  age: number;
+  move_number: number;
+  attacker_rank: string;
+  known_rank: string;
+  defender_piece_id: string;
+  load: number;
+}
+
+export interface MemoryEvent {
+  move_number: number;
+  hit: boolean;
+  test_id: MemoryTestId;
+  attacker_rank: string;
+  known_rank: string;
+  age: number;
+  weight: number;
+  narrative: string;
+}
+
+export interface MemoryGameAccum {
+  hits: number;
+  misses: number;
+  hitsW: number;
+  missesW: number;
+  bombHits: number;
+  bombMisses: number;
+  marshalHits: number;
+  marshalMisses: number;
+  trackHits: number;
+  trackMisses: number;
+  missByAge: Record<string, { hits: number; misses: number }>;
+  loadAtHit: number[];
+  loadAtMiss: number[];
+  events: MemoryEvent[];
+}
+
+export function emptyMemoryAccum(): MemoryGameAccum {
+  return {
+    hits: 0,
+    misses: 0,
+    hitsW: 0,
+    missesW: 0,
+    bombHits: 0,
+    bombMisses: 0,
+    marshalHits: 0,
+    marshalMisses: 0,
+    trackHits: 0,
+    trackMisses: 0,
+    missByAge: {
+      "0-5": { hits: 0, misses: 0 },
+      "6-15": { hits: 0, misses: 0 },
+      "16-30": { hits: 0, misses: 0 },
+      "31+": { hits: 0, misses: 0 },
+    },
+    loadAtHit: [],
+    loadAtMiss: [],
+    events: [],
+  };
+}
+
+function ageBucket(age: number): string {
+  if (age <= 5) return "0-5";
+  if (age <= 15) return "6-15";
+  if (age <= 30) return "16-30";
+  return "31+";
+}
+
+const RANK_NAME: Record<string, string> = {
+  "1": "Marshal", "2": "General", "3": "Colonel", "4": "Major",
+  "5": "Captain", "6": "Lieutenant", "7": "Sergeant", "8": "Miner",
+  "9": "Scout", "10": "Spy", BOMB: "Bomb", FLAG: "Flag",
+};
+
+function narrativeFor(test: MemoryTestResult): string {
+  const ar = RANK_NAME[test.attacker_rank] ?? test.attacker_rank;
+  const kr = RANK_NAME[test.known_rank] ?? test.known_rank;
+  if (test.test_id === "bomb_correct") {
+    return test.hit
+      ? `Move ${test.move_number} — remembered the Bomb ${test.age} moves later; ${ar} cleared it.`
+      : `Move ${test.move_number} — forgot the Bomb (age ${test.age}); sent a ${ar} into it.`;
+  }
+  if (test.test_id === "track_strike") {
+    return test.hit
+      ? `Move ${test.move_number} — tracked ${kr} to its new square.`
+      : `Move ${test.move_number} — attacked the old ${kr} square after it moved.`;
+  }
+  if (test.test_id === "threat_avoidance") {
+    return `Move ${test.move_number} — walked ${ar} into a known lethal ${kr}.`;
+  }
+  if (test.test_id === "spy_marshal") {
+    return test.hit
+      ? `Move ${test.move_number} — Spy correctly struck the known Marshal.`
+      : `Move ${test.move_number} — misplayed the known Marshal with ${ar}.`;
+  }
+  return test.hit
+    ? `Move ${test.move_number} — correctly re-engaged ${kr} with ${ar}.`
+    : `Move ${test.move_number} — misjudged ${kr}; sent ${ar}.`;
+}
+
+/**
+ * Memory tests for an attack against myLedger.
+ * Call BEFORE learning new info from this combat.
+ * Trades (TIE) excluded. threat_avoidance is MISS-only.
+ */
+export function emitMemoryTestsForAttack(
+  m: MoveLike,
+  slot: number,
+  myLedger: KnowledgeLedger,
+  vacated: Map<string, VacatedSquare>,
+  _legal: LegalMove[],
+  pieceById: Map<string, PieceLike>,
+): MemoryTestResult[] {
+  if (m.player_slot !== slot || m.move_type !== "attack") return [];
+  if (!m.defender_piece_id || !m.attacker_rank) return [];
+  if (m.outcome === "TIE") return []; // trades excluded
+
+  const results: MemoryTestResult[] = [];
+  const load = ledgerAliveCount(myLedger);
+  const weight = RANK_VALUE_IW[m.attacker_rank] ?? 1;
+
+  const known = myLedger.get(m.defender_piece_id);
+
+  // --- track_strike (position memory) ---
+  const vacKey = `${m.to_row},${m.to_col}`;
+  const stale = vacated.get(vacKey);
+  if (stale && stale.piece_id !== m.defender_piece_id) {
+    const staleEntry = myLedger.get(stale.piece_id);
+    if (staleEntry?.moved_since_reveal) {
+      results.push({
+        test_id: "track_strike",
+        hit: false,
+        weight,
+        age: m.move_number - stale.vacated_at,
+        move_number: m.move_number,
+        attacker_rank: m.attacker_rank,
+        known_rank: stale.rank,
+        defender_piece_id: m.defender_piece_id,
+        load,
+      });
+    }
+  } else if (known?.moved_since_reveal) {
+    const onCurrent =
+      m.to_row === known.last_known_row && m.to_col === known.last_known_col;
+    results.push({
+      test_id: "track_strike",
+      hit: onCurrent,
+      weight,
+      age: m.move_number - known.revealed_at,
+      move_number: m.move_number,
+      attacker_rank: m.attacker_rank,
+      known_rank: known.rank,
+      defender_piece_id: m.defender_piece_id,
+      load,
+    });
+  }
+
+  // Identity tests require defender already in myLedger
+  if (!known || !known.alive) return results;
+
+  const age = m.move_number - known.revealed_at;
+
+  // threat_avoidance — MISS ONLY when attacking a known piece you'd lose to
+  if (isKnownLethalAttack(m.attacker_rank, m.defender_piece_id, myLedger)) {
+    results.push({
+      test_id: "threat_avoidance",
+      hit: false,
+      weight,
+      age,
+      move_number: m.move_number,
+      attacker_rank: m.attacker_rank,
+      known_rank: known.rank,
+      defender_piece_id: m.defender_piece_id,
+      load,
+    });
+  }
+
+  if (known.rank === "BOMB") {
+    results.push({
+      test_id: "bomb_correct",
+      hit: m.attacker_rank === "8",
+      weight,
+      age,
+      move_number: m.move_number,
+      attacker_rank: m.attacker_rank,
+      known_rank: known.rank,
+      defender_piece_id: m.defender_piece_id,
+      load,
+    });
+  } else if (known.rank === "1") {
+    results.push({
+      test_id: "spy_marshal",
+      hit: m.attacker_rank === "10", // Spy ONLY
+      weight,
+      age,
+      move_number: m.move_number,
+      attacker_rank: m.attacker_rank,
+      known_rank: known.rank,
+      defender_piece_id: m.defender_piece_id,
+      load,
+    });
+  } else if (!ranksTie(m.attacker_rank, known.rank)) {
+    results.push({
+      test_id: "known_win",
+      hit: rankBeats(m.attacker_rank, known.rank),
+      weight,
+      age,
+      move_number: m.move_number,
+      attacker_rank: m.attacker_rank,
+      known_rank: known.rank,
+      defender_piece_id: m.defender_piece_id,
+      load,
+    });
+  }
+
+  return results;
+}
+
+export function accumulateMemoryTests(
+  acc: MemoryGameAccum,
+  tests: MemoryTestResult[],
+): void {
+  for (const t of tests) {
+    const bucket = ageBucket(t.age);
+    if (t.hit) {
+      acc.hits++;
+      acc.hitsW += t.weight;
+      acc.missByAge[bucket].hits++;
+      acc.loadAtHit.push(t.load);
+      if (t.test_id === "bomb_correct") acc.bombHits++;
+      if (t.test_id === "spy_marshal") acc.marshalHits++;
+      if (t.test_id === "track_strike") acc.trackHits++;
+    } else {
+      acc.misses++;
+      acc.missesW += t.weight;
+      acc.missByAge[bucket].misses++;
+      acc.loadAtMiss.push(t.load);
+      if (t.test_id === "bomb_correct") acc.bombMisses++;
+      if (t.test_id === "spy_marshal") acc.marshalMisses++;
+      if (t.test_id === "track_strike") acc.trackMisses++;
+    }
+    acc.events.push({
+      move_number: t.move_number,
+      hit: t.hit,
+      test_id: t.test_id,
+      attacker_rank: t.attacker_rank,
+      known_rank: t.known_rank,
+      age: t.age,
+      weight: t.weight,
+      narrative: narrativeFor(t),
+    });
+  }
+}
+
+export function topMemoryMoments(events: MemoryEvent[], limit = 5): MemoryEvent[] {
+  return [...events]
+    .sort((a, b) => b.weight - a.weight || b.move_number - a.move_number)
+    .slice(0, limit);
+}
