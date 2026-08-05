@@ -455,6 +455,104 @@ Memory tests should only fire on events where the player made a CHOICE that can 
 
 ---
 
+## Part 9: Information Edge — Correct Model
+
+### Why Info Edge Can Diverge (It's NOT Always Zero)
+
+In Stratego, both players do NOT always share the same information. Three legitimate sources of asymmetry:
+
+#### Source 1: Scout Movement Inference (One-Directional)
+
+When a piece moves 2+ squares, the OBSERVER learns it's a Scout — but the Scout's owner learns NOTHING about the observer. This is purely one-directional information gain. If andy's Scout long-moves and Xavier sees it, Xavier gains +1 knowledge with no reciprocal gain for andy.
+
+#### Source 2: Elimination Deduction (One-Directional, Compositional)
+
+Every player knows the exact starting army composition: 1 Marshal, 1 General, 2 Colonels, 3 Majors, 4 Captains, 4 Lieutenants, 4 Sergeants, 5 Miners, 8 Scouts, 1 Spy, 6 Bombs, 1 Flag.
+
+As pieces die, each player can see what's in the graveyard. This enables deduction:
+- "I've killed 7 of their 8 Scouts → the next piece that moves multi-square is definitely their last Scout"
+- "I've identified/killed every piece except one → that must be the Flag"
+- "I've killed 4 of 5 Miners → if they defuse a Bomb, I know exactly which piece it is"
+
+This asymmetry is real because each player has killed DIFFERENT pieces at DIFFERENT rates. Player A may have killed enough to deduce the Flag while Player B hasn't killed enough to deduce anything.
+
+#### Source 3: Combat Reveals Are Symmetric (Do NOT Create Asymmetry)
+
+Every combat reveals one rank to each side equally: attacker learns defender_rank, defender learns attacker_rank. Combat adds +1 to BOTH knowledge sets and should NOT move the Info Edge.
+
+### Correct Info Edge Formula
+
+```
+InfoEdge_P(t) = |pieces P knows| - |pieces opponent knows about P's army|
+```
+
+Where "knows" includes:
+- Combat reveals (symmetric — both sides get +1)
+- Scout movement inference (one-directional — only observer gets +1)
+- Elimination deduction (one-directional — based on kill counts + known composition)
+
+### Elimination Deduction Model
+
+At any point, a player can "infer" an enemy piece's rank if the remaining army composition makes it the only possibility:
+
+```
+For each unrevealed enemy piece:
+  remaining_possible_ranks = army_composition - revealed_ranks - killed_ranks
+  if only 1 rank has remaining count > 0 that fits → piece is deduced
+```
+
+Full implementation is complex (requires tracking all alive/dead/revealed per rank). Simplified v1: count "deducible pieces" = ranks where `killed_count == starting_count - 1` and one unrevealed piece of that rank exists.
+
+### Current Bug
+
+The current implementation double-counts reveals on one side. Fix: combat reveals should add exactly +1 to EACH player's knowledge. Scout inferences add +1 to observer only. Elimination deduction adds +1 to the player who has killed enough to deduce.
+
+---
+
+## Part 10: Knowledge Ledger — Reveal Source Tracking
+
+### Problem
+
+The `KnowledgeEntry` currently stores WHAT a piece is and WHERE it was, but not HOW it was revealed. This matters for:
+- Narrative generation ("fought and survived" vs "moved multi-square" vs "deduced from elimination")
+- Metrics that distinguish active intelligence (scouting) from passive inference (watching movement)
+- Correctly attributing information gain in the Info Edge curve
+
+### Fix
+
+Add `revealSource` to `KnowledgeEntry`:
+
+```typescript
+export interface KnowledgeEntry {
+  pieceId: string;
+  rank: string;
+  revealedAt: number;
+  revealSource: "combat_as_attacker" | "combat_as_defender" | "movement_inference" | "elimination_deduction";
+  lastKnownRow: number;
+  lastKnownCol: number;
+  lastUpdateMove: number;
+  movedSinceReveal: boolean;
+  alive: boolean;
+}
+```
+
+### Impact on Metrics
+
+- **Info Edge Curve:** Only `movement_inference` and `elimination_deduction` create asymmetry. Combat reveals are symmetric.
+- **Memory narrative:** "Revealed by multi-square movement" vs "Revealed in combat" — different story text.
+- **Scout self-reveal rate (new metric):** How often do your Scouts give away their identity by long-moving? `scout_inferences_against_you / total_scout_moves`. Low = disciplined Scout usage.
+- **Deduction skill (future):** Players who deduce from elimination counts faster have a cognitive edge not captured by combat reveals.
+
+### Memory Display Fix
+
+When showing memory moments in narrative, use `revealSource` to generate accurate text:
+- `combat_as_attacker`: "Learned this was a {rank} when you attacked it at move {N}"
+- `combat_as_defender`: "Learned this was a {rank} when it attacked you at move {N}"
+- `movement_inference`: "Identified as Scout from multi-square movement at move {N}"
+- `elimination_deduction`: "Deduced as {rank} from army composition at move {N}"
+
+---
+
 ## Design Decisions
 
 1. **Ties into known equal rank** — EXCLUDED from memory tests (ambiguous intentional trade)
@@ -466,3 +564,6 @@ Memory tests should only fire on events where the player made a CHOICE that can 
 7. **Phase-binning is additive** — full-game aggregates remain as headline numbers; phase bins are a deeper layer, not a replacement
 8. **Phase quartiles use player-relative captures** — not absolute move count — for cross-game comparability
 9. **Kill ≠ Trade ≠ Defuse** — see Combat Event Taxonomy; kills_by_rank and MVP use clean kills only
+10. **Info Edge asymmetry comes from 3 sources only** — Scout inference (one-directional), elimination deduction (one-directional), and combat (symmetric/zero-sum). Combat reveals do NOT move the edge.
+11. **Reveal source must be tracked** — `KnowledgeEntry.revealSource` distinguishes how a piece was identified, for narrative accuracy and metric correctness
+12. **Memory display uses plain language** — show "100% (0 mistakes)" not "29w, 0 misses". Internal weights are for scoring, not display.
