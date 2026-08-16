@@ -4,7 +4,7 @@ import { renderNavAuth, getUsername, isLoggedIn } from "./auth.js";
 renderNavAuth(document.getElementById("nav-auth"));
 import { BOARD_SIZE, isLake } from "./rules/board.js";
 import { chooseBotMove } from "./bot.js";
-import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
+import { createTokenSVG, RANK_NAME, NEUTRAL_COLOR } from "./token.js";
 import { initAudio, playSound, playMusic, setSfxVolume, setMusicVolume, toggleMuteAll, getAudioState } from "./audio.js";
 
 const RANK_SHORT = {
@@ -31,8 +31,10 @@ const GRAVEYARD_RANKS = [
   { rank: 'FLAG', abbr: 'F',  count: 1 },
 ];
 
-function getPlayerColor() {
-  return localStorage.getItem(`stratego:${roomCode}:color`) || DEFAULT_PLAYER_COLOR;
+function colorForSlot(slotNum) {
+  const anyPiece = [...piecesById.values()][0];
+  if (!anyPiece) return null;
+  return Number(slotNum) === 1 ? anyPiece.player1_color : anyPiece.player2_color;
 }
 
 const params = new URLSearchParams(location.search);
@@ -354,7 +356,7 @@ function renderBoard() {
           const revealedRank = getPostCombatRevealRank(piece.piece_id);
           if (revealedRank != null) displayRank = revealedRank;
         }
-        cell.appendChild(createTokenSVG(displayRank, isFriendly, getPlayerColor()));
+        cell.appendChild(createTokenSVG(displayRank, isFriendly, colorForSlot(piece.player_slot)));
         if (piece.piece_id === selectedPieceId) cell.classList.add("selected");
       }
 
@@ -422,6 +424,9 @@ function renderSingleGraveyard(containerId, isMine, enemyRankMap, filterSlot) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
+  const colorSlot = filterSlot ?? (isMine ? mySlot : 3 - mySlot);
+  const trayColor = colorForSlot(colorSlot) || NEUTRAL_COLOR;
+
   const allPieces = [...piecesById.values()];
   const deadPieces = allPieces.filter((p) => !p.alive && (filterSlot ? p.player_slot === filterSlot : p.is_mine === isMine));
 
@@ -464,7 +469,7 @@ function renderSingleGraveyard(containerId, isMine, enemyRankMap, filterSlot) {
       if (s < deadCount) {
         slot.classList.add(`filled-${colorSuffix}`);
         slot.textContent = entry.abbr;
-        if (isMine) slot.style.backgroundColor = getPlayerColor();
+        slot.style.backgroundColor = trayColor;
       } else {
         slot.classList.add(`empty-${colorSuffix}`);
       }

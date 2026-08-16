@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { verifyToken } from "../_shared/auth.ts";
+import { firstAvailableColor } from "../_shared/colors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -24,7 +25,7 @@ Deno.serve(async (req) => {
 
   const { data: game, error: gameError } = await supabase
     .from("games")
-    .select("id, status")
+    .select("id, status, player1_color")
     .eq("room_code", roomCode)
     .maybeSingle();
 
@@ -69,9 +70,11 @@ Deno.serve(async (req) => {
     if (claims) playerId = claims.player_id;
   }
 
-  if (playerId) {
-    await supabase.from("games").update({ player2_id: playerId }).eq("id", game.id);
-  }
+  const gameUpdate: Record<string, unknown> = {
+    player2_color: firstAvailableColor([game.player1_color]),
+  };
+  if (playerId) gameUpdate.player2_id = playerId;
+  await supabase.from("games").update(gameUpdate).eq("id", game.id);
 
   return new Response(
     JSON.stringify({ token: playerRow.secret_token, gameId: game.id }),

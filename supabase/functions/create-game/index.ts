@@ -2,6 +2,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { verifyToken } from "../_shared/auth.ts";
+import { firstAvailableColor } from "../_shared/colors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,7 +47,12 @@ Deno.serve(async (req) => {
   for (let attempt = 0; attempt < 5 && !gameId; attempt++) {
     const { data, error } = await supabase
       .from("games")
-      .insert({ room_code: roomCode, is_bot_game: isBotGame, player1_id: playerId })
+      .insert({
+        room_code: roomCode,
+        is_bot_game: isBotGame,
+        player1_id: playerId,
+        player1_color: firstAvailableColor([]),
+      })
       .select("id")
       .single();
 

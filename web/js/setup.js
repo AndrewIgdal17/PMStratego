@@ -26,35 +26,88 @@ const PLAYER_COLORS = [
   { name: 'Bronze',       hex: '#8a6a3a' },
 ];
 
-function initColorPicker() {
+let myColor = null;
+let opponentColor = null;
+
+function renderColorPalette() {
   const container = document.getElementById('color-swatches');
   if (!container) return;
-
-  const saved = localStorage.getItem(`stratego:${roomCode}:color`) || PLAYER_COLORS[0].hex;
+  container.innerHTML = '';
 
   for (const color of PLAYER_COLORS) {
     const swatch = document.createElement('div');
     swatch.className = 'color-swatch';
     swatch.style.backgroundColor = color.hex;
-    swatch.title = color.name;
-    if (color.hex === saved) swatch.classList.add('selected');
 
-    swatch.addEventListener('click', () => {
-      container.querySelectorAll('.color-swatch').forEach((s) => s.classList.remove('selected'));
-      swatch.classList.add('selected');
-      localStorage.setItem(`stratego:${roomCode}:color`, color.hex);
-      if (typeof renderGrid === "function") renderGrid();
-    });
+    const isTaken = color.hex === opponentColor && color.hex !== myColor;
+    if (isTaken) {
+      swatch.classList.add('taken');
+      swatch.title = `${color.name} (Taken by opponent)`;
+    } else {
+      swatch.title = color.name;
+      swatch.addEventListener('click', () => selectColor(color.hex, swatch));
+    }
+
+    if (color.hex === myColor) swatch.classList.add('selected');
 
     container.appendChild(swatch);
   }
+}
 
-  if (!localStorage.getItem(`stratego:${roomCode}:color`)) {
-    localStorage.setItem(`stratego:${roomCode}:color`, PLAYER_COLORS[0].hex);
+async function selectColor(hex, swatchEl) {
+  if (hex === myColor) return;
+  try {
+    await callFunction("set-color", { token, color: hex });
+    myColor = hex;
+    localStorage.setItem(`stratego:${roomCode}:color`, hex);
+    renderColorPalette();
+    if (typeof renderGrid === "function") renderGrid();
+  } catch (err) {
+    swatchEl.classList.add('flash-taken');
+    setTimeout(() => swatchEl.classList.remove('flash-taken'), 500);
   }
 }
 
-initColorPicker();
+async function initColorPicker() {
+  const { data: gameRow } = await supabase.from("games").select("id, player1_color, player2_color").eq("room_code", roomCode).single();
+  if (!gameRow) return;
+
+  myColor = slot === 1 ? gameRow.player1_color : gameRow.player2_color;
+  opponentColor = slot === 1 ? gameRow.player2_color : gameRow.player1_color;
+
+  const remembered = localStorage.getItem(`stratego:${roomCode}:color`);
+  const inPalette = PLAYER_COLORS.some((c) => c.hex === remembered);
+  if (remembered && inPalette && remembered === opponentColor && remembered !== myColor) {
+    const fallback = PLAYER_COLORS.find((c) => c.hex !== opponentColor)?.hex ?? PLAYER_COLORS[0].hex;
+    try {
+      await callFunction("set-color", { token, color: fallback });
+      myColor = fallback;
+      localStorage.setItem(`stratego:${roomCode}:color`, fallback);
+    } catch {
+      // Keep whatever the server already has.
+    }
+  } else if (remembered && inPalette && remembered !== opponentColor && remembered !== myColor) {
+    try {
+      await callFunction("set-color", { token, color: remembered });
+      myColor = remembered;
+    } catch {
+      // Opponent may have claimed it between page load and this call.
+    }
+  }
+
+  if (myColor) localStorage.setItem(`stratego:${roomCode}:color`, myColor);
+  renderColorPalette();
+  if (typeof renderGrid === "function") renderGrid();
+
+  supabase
+    .channel(`color-wait-${gameRow.id}`)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "games", filter: `id=eq.${gameRow.id}` }, (payload) => {
+      myColor = slot === 1 ? payload.new.player1_color : payload.new.player2_color;
+      opponentColor = slot === 1 ? payload.new.player2_color : payload.new.player1_color;
+      renderColorPalette();
+    })
+    .subscribe();
+}
 
 async function ensureSession() {
   let token = localStorage.getItem(`stratego:${roomCode}:token`);
@@ -86,6 +139,8 @@ const token = await ensureSession();
 // 2's -- so we need this mapping before sending placements to the server.
 const slot = Number(localStorage.getItem(`stratego:${roomCode}:slot`));
 const ABSOLUTE_ROWS = ABSOLUTE_ROWS_BY_SLOT[slot];
+
+initColorPicker();
 
 async function initDifficultyControls() {
   const { data: gameRow } = await supabase.from("games").select("is_bot_game, bot_difficulty").eq("room_code", roomCode).single();
@@ -234,8 +289,7 @@ function renderGrid() {
       const key = `${row},${col}`;
       const rank = placements.get(key);
       if (rank) {
-        const playerColor = localStorage.getItem(`stratego:${roomCode}:color`) || DEFAULT_PLAYER_COLOR;
-        cell.appendChild(createTokenSVG(rank, true, playerColor));
+        cell.appendChild(createTokenSVG(rank, true, myColor || DEFAULT_PLAYER_COLOR));
         cell.classList.add("occupied");
       }
       cell.addEventListener("click", () => {
