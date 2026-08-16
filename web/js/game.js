@@ -6,30 +6,7 @@ import { BOARD_SIZE, isLake } from "./rules/board.js";
 import { chooseBotMove } from "./bot.js";
 import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
 import { initAudio, playSound, playMusic, setSfxVolume, setMusicVolume, toggleMuteAll, getAudioState } from "./audio.js";
-
-const RANK_SHORT = {
-  '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
-  '5': 'Cp', '6': 'Lt', '7': 'Sg', '8': 'Mi',
-  '9': 'Sc', '10': 'Sp', 'BOMB': 'B', 'FLAG': 'F',
-  1: 'Ma', 2: 'Ge', 3: 'Co', 4: 'Mj',
-  5: 'Cp', 6: 'Lt', 7: 'Sg', 8: 'Mi',
-  9: 'Sc', 10: 'Sp',
-};
-
-const GRAVEYARD_RANKS = [
-  { rank: '1',    abbr: 'Ma', count: 1 },
-  { rank: '2',    abbr: 'Ge', count: 1 },
-  { rank: '3',    abbr: 'Co', count: 2 },
-  { rank: '4',    abbr: 'Mj', count: 3 },
-  { rank: '5',    abbr: 'Cp', count: 4 },
-  { rank: '6',    abbr: 'Lt', count: 4 },
-  { rank: '7',    abbr: 'Sg', count: 4 },
-  { rank: '8',    abbr: 'Mi', count: 5 },
-  { rank: '9',    abbr: 'Sc', count: 8 },
-  { rank: '10',   abbr: 'Sp', count: 1 },
-  { rank: 'BOMB', abbr: 'B',  count: 6 },
-  { rank: 'FLAG', abbr: 'F',  count: 1 },
-];
+import { GRAVEYARD_RANKS, buildDeadEnemyRankMap, tallyDeadByRank } from "./graveyard.js";
 
 function getPlayerColor() {
   return localStorage.getItem(`stratego:${roomCode}:color`) || DEFAULT_PLAYER_COLOR;
@@ -160,7 +137,7 @@ function renderTurnIndicator() {
 async function refreshMoveLog(gameId) {
   const { data, error } = await supabase
     .from("moves")
-    .select("move_number, player_slot, piece_id, from_row, from_col, to_row, to_col, move_type, outcome, attacker_rank, defender_rank")
+    .select("move_number, player_slot, piece_id, from_row, from_col, to_row, to_col, move_type, outcome, attacker_rank, defender_rank, defender_piece_id")
     .eq("game_id", gameId)
     .order("move_number", { ascending: true });
   if (error) return;
@@ -366,48 +343,7 @@ function renderBoard() {
 
 function renderGraveyards(moveData) {
   const allPieces = [...piecesById.values()];
-
-  const deadEnemyRanks = new Map();
-  if (moveData) {
-    for (const m of moveData) {
-      if (m.move_type !== 'attack') continue;
-
-      const attackerPiece = allPieces.find((p) => p.piece_id === m.piece_id);
-      const isMyAttack = attackerPiece && attackerPiece.is_mine;
-
-      if (m.outcome === 'ATTACKER_WINS') {
-        if (isMyAttack) {
-          const deadDefender = allPieces.find(
-            (p) => !p.alive && !p.is_mine && p.piece_id !== m.piece_id &&
-            p.row_idx === m.to_row && p.col_idx === m.to_col
-          );
-          if (deadDefender && !deadEnemyRanks.has(deadDefender.piece_id)) {
-            deadEnemyRanks.set(deadDefender.piece_id, String(m.defender_rank));
-          }
-        }
-      } else if (m.outcome === 'DEFENDER_WINS') {
-        if (!isMyAttack) {
-          if (!deadEnemyRanks.has(m.piece_id)) {
-            deadEnemyRanks.set(m.piece_id, String(m.attacker_rank));
-          }
-        }
-      } else if (m.outcome === 'TIE') {
-        if (isMyAttack) {
-          const deadDefender = allPieces.find(
-            (p) => !p.alive && !p.is_mine && p.piece_id !== m.piece_id &&
-            p.row_idx === m.to_row && p.col_idx === m.to_col
-          );
-          if (deadDefender && !deadEnemyRanks.has(deadDefender.piece_id)) {
-            deadEnemyRanks.set(deadDefender.piece_id, String(m.defender_rank));
-          }
-        } else {
-          if (!deadEnemyRanks.has(m.piece_id)) {
-            deadEnemyRanks.set(m.piece_id, String(m.attacker_rank));
-          }
-        }
-      }
-    }
-  }
+  const deadEnemyRanks = isSpectator ? null : buildDeadEnemyRankMap(allPieces, moveData);
 
   if (isSpectator) {
     renderSingleGraveyard('graveyard-enemy-body', false, null, 2);
@@ -422,19 +358,11 @@ function renderSingleGraveyard(containerId, isMine, enemyRankMap, filterSlot) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  const allPieces = [...piecesById.values()];
-  const deadPieces = allPieces.filter((p) => !p.alive && (filterSlot ? p.player_slot === filterSlot : p.is_mine === isMine));
-
-  const deadByRank = new Map();
-  for (const p of deadPieces) {
-    let rank = p.rank != null ? String(p.rank) : null;
-    if (!isMine && rank == null && enemyRankMap) {
-      rank = enemyRankMap.get(p.piece_id) ?? null;
-    }
-    if (rank == null) continue;
-    if (!deadByRank.has(rank)) deadByRank.set(rank, 0);
-    deadByRank.set(rank, deadByRank.get(rank) + 1);
-  }
+  const deadByRank = tallyDeadByRank([...piecesById.values()], {
+    isMine,
+    enemyRankMap,
+    filterSlot,
+  });
 
   const colorSuffix = isMine ? 'mine' : 'enemy';
 
