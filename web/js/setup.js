@@ -6,6 +6,7 @@ renderNavAuth(document.getElementById("nav-auth"));
 import { ARMY_COMPOSITION } from "./rules/pieces.js";
 import { DEFENSIVE_FORMATIONS, AGGRESSIVE_FORMATIONS } from "./formations.js";
 import { ABSOLUTE_ROWS_BY_SLOT } from "./formationRowMap.js";
+import { setupColLetters, setupRowNumbers } from "./coords.js";
 import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
 
 const params = new URLSearchParams(location.search);
@@ -208,18 +209,18 @@ let selectedRank = null;
 function renderGrid() {
   const colLabels = document.getElementById("setup-col-labels");
   if (colLabels && colLabels.children.length === 0) {
-    for (let c = 0; c < COLS.length; c++) {
+    for (const letter of setupColLetters(slot)) {
       const span = document.createElement("span");
-      span.textContent = String.fromCharCode(65 + c);
+      span.textContent = letter;
       colLabels.appendChild(span);
     }
   }
 
   const rowLabels = document.getElementById("setup-row-labels");
   if (rowLabels && rowLabels.children.length === 0) {
-    for (let r = 0; r < LOCAL_ROWS.length; r++) {
+    for (const number of setupRowNumbers(slot)) {
       const span = document.createElement("span");
-      span.textContent = String(7 + r);
+      span.textContent = number;
       rowLabels.appendChild(span);
     }
   }
