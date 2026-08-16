@@ -5,6 +5,7 @@ renderNavAuth(document.getElementById("nav-auth"));
 import { BOARD_SIZE, isLake } from "./rules/board.js";
 import { chooseBotMove } from "./bot.js";
 import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
+import { formatAbsCoord, colLettersAlongTop, rowNumbersAlongLeft } from "./coords.js";
 import { initAudio, playSound, playMusic, setSfxVolume, setMusicVolume, toggleMuteAll, getAudioState } from "./audio.js";
 
 const RANK_SHORT = {
@@ -273,22 +274,6 @@ function toAbsolute(displayRow, displayCol) {
   return { row: displayRow, col: displayCol };
 }
 
-function toDisplay(absRow, absCol) {
-  if (mySlot === 2) {
-    return { row: BOARD_SIZE - 1 - absRow, col: BOARD_SIZE - 1 - absCol };
-  }
-  return { row: absRow, col: absCol };
-}
-
-function formatCoord(displayRow, displayCol) {
-  return String.fromCharCode(65 + displayCol) + (displayRow + 1);
-}
-
-function formatAbsCoord(absRow, absCol) {
-  const d = toDisplay(absRow, absCol);
-  return formatCoord(d.row, d.col);
-}
-
 function getPostCombatRevealRank(pieceId) {
   if (!lastMoveData?.length) return null;
   const lastMove = lastMoveData[lastMoveData.length - 1];
@@ -318,9 +303,9 @@ function renderBoard() {
   const colLabels = document.getElementById("board-col-labels");
   if (colLabels) {
     colLabels.innerHTML = "";
-    for (let c = 0; c < BOARD_SIZE; c++) {
+    for (const letter of colLettersAlongTop(mySlot)) {
       const span = document.createElement("span");
-      span.textContent = String.fromCharCode(65 + c);
+      span.textContent = letter;
       colLabels.appendChild(span);
     }
   }
@@ -328,9 +313,9 @@ function renderBoard() {
   const rowLabels = document.getElementById("board-row-labels");
   if (rowLabels) {
     rowLabels.innerHTML = "";
-    for (let r = 0; r < BOARD_SIZE; r++) {
+    for (const number of rowNumbersAlongLeft(mySlot)) {
       const span = document.createElement("span");
-      span.textContent = String(r + 1);
+      span.textContent = number;
       rowLabels.appendChild(span);
     }
   }
