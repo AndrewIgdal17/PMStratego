@@ -18,9 +18,8 @@ const RANK_CENTER = {
   9: '2', 10: 'S',
 };
 
-const ENEMY_COLOR = '#8b4444';
-const ENEMY_STROKE = '#6a2a2a';
 export const DEFAULT_PLAYER_COLOR = '#4a7a4a';
+export const NEUTRAL_COLOR = '#6a6a6a';
 
 function darkenColor(hex) {
   const r = Math.max(0, parseInt(hex.slice(1, 3), 16) - 0x20);
@@ -30,9 +29,9 @@ function darkenColor(hex) {
 }
 
 export function createTokenSVG(rank, isMine, playerColor = DEFAULT_PLAYER_COLOR) {
-  const fill = isMine ? playerColor : ENEMY_COLOR;
-  const stroke = isMine ? darkenColor(fill) : ENEMY_STROKE;
-  const textFill = isMine ? '#e0f0e0' : '#f0d0d0';
+  const fill = playerColor || NEUTRAL_COLOR;
+  const stroke = darkenColor(fill);
+  const textFill = '#e0f0e0';
 
   const center = rank != null ? (RANK_CENTER[rank] ?? '?') : '?';
   const name = rank != null ? (RANK_NAME[rank] ?? null) : null;

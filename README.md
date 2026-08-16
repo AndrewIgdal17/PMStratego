@@ -15,6 +15,13 @@ Repo: https://github.com/AndrewIgdal17/PMStratego.git
 npm test
 ```
 
+**Shared Edge Function logic tests** (Deno, no live database):
+
+```bash
+deno test supabase/functions/_shared/colors.test.ts
+deno test supabase/functions/_shared/information-warfare.test.ts
+```
+
 **Supabase backend** (requires Docker Desktop running, and the Supabase CLI
 via `npx`):
 
