@@ -225,16 +225,20 @@ function pct(num, den) {
 function renderPhaseStats(phaseStats, slot) {
   const el = document.getElementById("game-phase-stats");
   const ps = phaseStats?.[`slot${slot}`];
-  if (!ps) return;
+  const quarters = ps?.by_capture_quarter;
+  if (!quarters) return;
   const rows = ["q1", "q2", "q3", "q4"].map((q) => {
-    const b = ps.by_capture_quarter[q];
+    const b = quarters[q];
+    if (!b) {
+      return `<tr><td>${q.toUpperCase()}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+    }
     return `<tr>
       <td>${q.toUpperCase()}</td>
       <td>${pct(b.reveal_wins, b.reveal_attacks)}</td>
       <td>${b.trade_count ? (b.trade_sum / b.trade_count).toFixed(1) : "—"}</td>
       <td>${pct(b.attack_wins, b.attacks)}</td>
       <td>${pct(b.avenge_kills, b.avenge_opportunities)}</td>
-      <td>${b.attacks}</td>
+      <td>${b.attacks ?? "—"}</td>
     </tr>`;
   }).join("");
   el.innerHTML = `
