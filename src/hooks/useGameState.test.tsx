@@ -336,6 +336,34 @@ describe('useGameState monotonic row', () => {
     await drain();
     expect(result.current.gameRow?.turn_number).toBe(4);
   });
+
+  it('still applies a slow newer row after a faster older fetch', async () => {
+    seat();
+    let releaseSlow: () => void = () => {};
+    const slow = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    mocks.state.rowQueue = [
+      { row: gameRow({ turn_number: 2 }), wait: Promise.resolve() },
+      { row: gameRow({ turn_number: 5 }), wait: slow },
+      { row: gameRow({ turn_number: 3 }), wait: Promise.resolve() },
+    ];
+
+    const { result } = renderHook(() => useGameState('ROOM', false));
+    await drain();
+    expect(result.current.gameRow?.turn_number).toBe(2);
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await drain();
+    expect(result.current.gameRow?.turn_number).toBe(3);
+
+    releaseSlow();
+    await drain();
+    expect(result.current.gameRow?.turn_number).toBe(5);
+  });
 });
 
 describe('useGameState rematch', () => {

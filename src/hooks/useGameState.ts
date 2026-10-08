@@ -153,6 +153,12 @@ async function fetchBotMoves(gameId: string): Promise<BotMoveRow[] | null> {
   return readBotMoves(data);
 }
 
+/** True when `next` moves the turn or the status forward, not when it is the same snapshot. */
+function rowAdvances(next: GameRow, prev: GameRow | null): boolean {
+  if (!prev) return true;
+  return shouldApplyGameRow(next, prev) && !shouldApplyGameRow(prev, next);
+}
+
 async function fetchChat(gameId: string): Promise<ChatMessage[] | null> {
   const { data, error } = await supabase
     .from('chat_messages')
@@ -183,6 +189,7 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
   const rematchCodeRef = useRef<string | null>(null);
   const moveInFlight = useRef(false);
   const refreshGen = useRef(0);
+  const roomEpoch = useRef(0);
   const botPhase = useRef<'idle' | 'waiting' | 'running'>('idle');
   const botGen = useRef(0);
   const botTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -228,24 +235,30 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
 
   const refreshTrio = useCallback(
     async (id: string): Promise<void> => {
+      const epoch = roomEpoch.current;
       const gen = ++refreshGen.current;
       const row = await fetchGameRow(id);
-      if (gen !== refreshGen.current) return;
-      if (row) applyGameRow(row);
-
       const pieceRows = await refreshPieces();
-      if (gen !== refreshGen.current) return;
-      if (pieceRows) setPieces(new Map(pieceRows.map((piece) => [piece.piece_id, piece])));
-
       const moveRows = await fetchMoves(id);
-      if (gen !== refreshGen.current) return;
+      if (roomEpoch.current !== epoch) return;
+
+      if (row && !shouldApplyGameRow(row, gameRowRef.current)) return;
+      // A slow fetch that observed a newer turn still wins. A same-snapshot
+      // fetch does not overwrite a refresh that started later.
+      if (row && !rowAdvances(row, gameRowRef.current) && gen !== refreshGen.current) return;
+      if (!row && gen !== refreshGen.current) return;
+
+      if (row) applyGameRow(row);
+      if (pieceRows) setPieces(new Map(pieceRows.map((piece) => [piece.piece_id, piece])));
       if (moveRows) setMoves(moveRows);
     },
     [applyGameRow, refreshPieces],
   );
 
   const refreshChat = useCallback(async (id: string): Promise<void> => {
+    const epoch = roomEpoch.current;
     const rows = await fetchChat(id);
+    if (roomEpoch.current !== epoch) return;
     if (rows) setChat(rows);
   }, []);
 
@@ -261,10 +274,12 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
 
   const runBotMove = useCallback(
     async (id: string, token: string): Promise<void> => {
+      const epoch = roomEpoch.current;
       const row = gameRowRef.current;
       const difficulty = row?.bot_difficulty ?? 'medium';
       const personality = row?.bot_personality ?? 'neutral';
       for (let attempt = 0; attempt < BOT_MAX_ATTEMPTS; attempt += 1) {
+        if (roomEpoch.current !== epoch) return;
         const { data: rows, error: stateError } = await supabase.rpc('get_game_state', { p_token: token });
         if (stateError || !rows) continue;
         const pieceRows = readPieces(rows);
@@ -286,6 +301,7 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
 
         try {
           await callFunction('make-move', { token, from: move.from, to: move.to });
+          if (roomEpoch.current !== epoch) return;
           await refreshTrio(id);
           setBotError(null);
           return;
@@ -293,6 +309,7 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
           // The server rejected this attempt. Try again with a fresh board.
         }
       }
+      if (roomEpoch.current !== epoch) return;
       setBotError(BOT_STUCK);
     },
     [refreshTrio],
@@ -336,6 +353,7 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
     gameRowRef.current = null;
     gameIdRef.current = null;
     rematchCodeRef.current = null;
+    roomEpoch.current += 1;
     refreshGen.current += 1;
 
     async function load(): Promise<void> {
@@ -367,6 +385,7 @@ export function useGameState(roomCode: string, isSpectator: boolean): GameAction
     void load();
     return () => {
       cancelled = true;
+      roomEpoch.current += 1;
       refreshGen.current += 1;
     };
   }, [roomCode, isSpectator, refreshTrio, refreshChat]);
