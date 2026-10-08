@@ -80,13 +80,22 @@ async function refreshState() {
   renderGraveyards(lastMoveData);
 }
 
+const STATUS_RANK = { setup: 0, active: 1, finished: 2 };
+
+function shouldApplyGameRow(next, prev) {
+  if (!prev) return true;
+  if (next.turn_number !== prev.turn_number) return next.turn_number > prev.turn_number;
+  return (STATUS_RANK[next.status] ?? -1) >= (STATUS_RANK[prev.status] ?? -1);
+}
+
 async function refreshGameRow(gameId) {
   const { data, error } = await supabase
     .from("games")
     .select("status, current_turn_slot, turn_number, winner_slot, is_bot_game, bot_difficulty, bot_personality")
     .eq("id", gameId)
     .single();
-  if (error) return;
+  if (error || !data) return;
+  if (!shouldApplyGameRow(data, gameRow)) return;
   gameRow = data;
   renderTurnIndicator();
 
