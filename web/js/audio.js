@@ -17,6 +17,8 @@ let sfxGain = null;
 let musicGain = null;
 let masterGain = null;
 let buffers = new Map();
+let rawBuffers = new Map();
+let unlocked = false;
 let musicElement = null;
 let musicMediaSource = null;
 let musicPlaying = false;
@@ -74,20 +76,15 @@ export async function initAudio() {
 
   applyGains();
 
-  if (ctx.state === 'suspended') {
-    await ctx.resume();
-  }
-
   const basePath = new URL(AUDIO_BASE, import.meta.url).href;
-
   setupMusicElement(basePath);
 
+  // Fetch raw audio data but do NOT decode yet — decoding while the
+  // AudioContext is suspended can fail on Safari. Decode on first unlock.
   const loadPromises = Object.entries(SFX_FILES).map(async ([name, file]) => {
     try {
       const res = await fetch(basePath + file);
-      const arrayBuf = await res.arrayBuffer();
-      const audioBuf = await ctx.decodeAudioData(arrayBuf);
-      buffers.set(name, audioBuf);
+      rawBuffers.set(name, await res.arrayBuffer());
     } catch (e) {
       console.warn(`Failed to load sound: ${name}`, e);
     }
@@ -95,11 +92,41 @@ export async function initAudio() {
 
   await Promise.all(loadPromises);
   initialized = true;
+
+  // Unlock on the first user gesture (pointerdown fires before click,
+  // giving us the earliest possible moment in the gesture).
+  document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
+}
+
+async function unlockAudio() {
+  if (unlocked) return;
+  unlocked = true;
+  try {
+    if (ctx.state === 'suspended') await ctx.resume();
+  } catch { /* context may already be running */ }
+
+  // Decode the pre-fetched buffers now that the context is active.
+  for (const [name, arrayBuf] of rawBuffers) {
+    try {
+      buffers.set(name, await ctx.decodeAudioData(arrayBuf));
+    } catch (e) {
+      console.warn(`Failed to decode sound: ${name}`, e);
+    }
+  }
+  rawBuffers.clear();
+
+  // Start music on first interaction
+  playMusic();
 }
 
 export function playSound(name) {
   if (!initialized || !ctx) return;
   if (state.allMuted || state.sfxMuted) return;
+
+  // Belt-and-suspenders: resume on any sound-triggering interaction
+  if (ctx.state === 'suspended') {
+    ctx.resume().catch(() => {});
+  }
 
   if (name === 'select') {
     playSynthClick();

@@ -5,7 +5,7 @@ renderNavAuth(document.getElementById("nav-auth"));
 import { BOARD_SIZE, isLake } from "./rules/board.js";
 import { chooseBotMove } from "./bot.js";
 import { createTokenSVG, RANK_NAME, DEFAULT_PLAYER_COLOR } from "./token.js";
-import { initAudio, playSound, playMusic, setSfxVolume, setMusicVolume, toggleMuteAll, getAudioState } from "./audio.js";
+import { initAudio, playSound, setSfxVolume, setMusicVolume, toggleMuteAll, getAudioState } from "./audio.js";
 
 const RANK_SHORT = {
   '1': 'Ma', '2': 'Ge', '3': 'Co', '4': 'Mj',
@@ -628,7 +628,7 @@ async function init() {
 
   if (!isSpectator) {
     await initAudio();
-    playMusic();
+    // playMusic() is now called by unlockAudio() on the first user gesture
     setupAudioControls();
   }
 
