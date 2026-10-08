@@ -40,6 +40,14 @@ body {
   flex-direction: column;
 }
 
+/* Nav and page-shell are inside #root, not direct children of body. */
+#root {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
 h1 {
   text-align: center;
   letter-spacing: 0.05em;
