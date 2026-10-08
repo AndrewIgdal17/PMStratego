@@ -14,18 +14,18 @@ export async function callFunction(name, body) {
   const enrichedBody = token ? { ...body, authToken: token } : body;
   const { data, error } = await supabase.functions.invoke(name, { body: enrichedBody });
   if (error) {
-    let message = error.message ?? "UNKNOWN_ERROR";
+    let message;
     if (error.context && typeof error.context.json === "function") {
       try {
         const errorBody = await error.context.json();
-        message = errorBody?.error ?? message;
+        message = errorBody?.error;
       } catch {
-        // response body wasn't JSON (or context.json() failed) -- fall back to error.message
+        // response body wasn't JSON
       }
-    } else if (data?.error) {
-      message = data.error;
     }
+    message = message || data?.error || error.message || "UNKNOWN_ERROR";
     throw new Error(message);
   }
+  if (data == null) throw new Error("EMPTY_RESPONSE");
   return data;
 }
