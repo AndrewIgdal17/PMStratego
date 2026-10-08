@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.tsx';
 import { Layout } from './components/Layout.tsx';
+import { HomePage } from './pages/HomePage.tsx';
 
 function Placeholder({ name }: { name: string }) {
   return (
@@ -18,7 +19,7 @@ export function App() {
     <AuthProvider>
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<Placeholder name="Home" />} />
+          <Route index element={<HomePage />} />
           <Route path="setup" element={<Placeholder name="Setup" />} />
           <Route path="game" element={<Placeholder name="Game" />} />
           <Route path="profile" element={<Placeholder name="Profile" />} />
