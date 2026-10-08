@@ -71,9 +71,11 @@ document.getElementById("play-bot-btn").addEventListener("click", async () => {
   const button = document.getElementById("play-bot-btn");
   const resultEl = document.getElementById("play-bot-error");
   button.disabled = true;
+  let roomCode = null;
   try {
-    const { roomCode, token } = await callFunction("create-game", { isBotGame: true });
-    storeSession(roomCode, token, 1);
+    const created = await callFunction("create-game", { isBotGame: true });
+    roomCode = created.roomCode;
+    storeSession(roomCode, created.token, 1);
 
     const { token: botToken } = await callFunction("join-game", { roomCode });
     localStorage.setItem(`stratego:${roomCode}:botToken`, botToken);
@@ -82,6 +84,15 @@ document.getElementById("play-bot-btn").addEventListener("click", async () => {
 
     location.href = `setup.html?code=${roomCode}`;
   } catch (err) {
+    if (roomCode) {
+      const humanToken = localStorage.getItem(`stratego:${roomCode}:token`);
+      if (humanToken) {
+        try { await callFunction("abandon-game", { token: humanToken }); } catch { /* best effort */ }
+      }
+      for (const key of ["token", "slot", "botToken"]) {
+        localStorage.removeItem(`stratego:${roomCode}:${key}`);
+      }
+    }
     resultEl.hidden = false;
     resultEl.textContent = `Failed to start bot game: ${err.message}`;
     button.disabled = false;
