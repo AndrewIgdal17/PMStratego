@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { jitterFactor, defaultJitterSeed } from '../../web/js/deterministicJitter.js';
+import { jitterFactor, defaultJitterSeed } from '../../src/bot/deterministicJitter.ts';
 
 test('jitterFactor is deterministic: the same seed always produces the same factor', () => {
   const a = jitterFactor('piece-123');

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findSuspects } from '../../web/js/pieceSuspicion.js';
+import { findSuspects } from '../../src/bot/pieceSuspicion.ts';
 
 test('a piece that has moved at least once is never suspected, no matter how long the game has run', () => {
   const history = [{ move_number: 1, piece_id: 'moved-1' }];

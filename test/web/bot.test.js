@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pickBotFormationPlacements, mapFormationToAbsolute, chooseBotMove } from '../../web/js/bot.js';
-import { ARMY_COMPOSITION, ARMY_SIZE } from '../../web/js/rules/pieces.js';
+import { pickBotFormationPlacements, mapFormationToAbsolute, chooseBotMove } from '../../src/bot/bot.ts';
+import { ARMY_COMPOSITION, ARMY_SIZE } from '../../src/rules/pieces.ts';
 
 // Regression test for a real bug: the bot placed formations.js cells at
 // the raw local row (0-3) with no slot-2 remap, so a formation's back rank

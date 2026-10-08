@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { findOwnFlag, estimateUnknownEnemyRank, assessGuardSquares } from '../../web/js/flagDefense.js';
-import { RANK } from '../../web/js/rules/pieces.js';
+import { findOwnFlag, estimateUnknownEnemyRank, assessGuardSquares } from '../../src/bot/flagDefense.ts';
+import { RANK } from '../../src/rules/pieces.ts';
 
 test('findOwnFlag returns the bot\'s alive Flag piece', () => {
   const pieces = [

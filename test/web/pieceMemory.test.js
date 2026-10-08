@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPieceMemory } from '../../web/js/pieceMemory.js';
+import { buildPieceMemory } from '../../src/bot/pieceMemory.ts';
 
 // Base combat-move shape, matching the `moves` table's columns.
 function combatMove(overrides) {
