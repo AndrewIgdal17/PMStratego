@@ -1,21 +1,11 @@
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.tsx';
 import { Layout } from './components/Layout.tsx';
+import { GameDetailPage } from './pages/GameDetailPage.tsx';
 import { GamePage } from './pages/GamePage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
-
-function Placeholder({ name }: { name: string }) {
-  return (
-    <div className="page-shell">
-      <div className="page-frame">
-        <h1>{name}</h1>
-        <p>Coming soon.</p>
-      </div>
-    </div>
-  );
-}
 
 export function App() {
   return (
@@ -26,7 +16,7 @@ export function App() {
           <Route path="setup" element={<SetupPage />} />
           <Route path="game" element={<GamePage />} />
           <Route path="profile" element={<ProfilePage />} />
-          <Route path="game-detail" element={<Placeholder name="Game Detail" />} />
+          <Route path="game-detail" element={<GameDetailPage />} />
         </Route>
       </Routes>
     </AuthProvider>
