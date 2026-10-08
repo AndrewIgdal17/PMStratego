@@ -219,7 +219,11 @@ function renderGrid() {
   if (rowLabels && rowLabels.children.length === 0) {
     for (let r = 0; r < LOCAL_ROWS.length; r++) {
       const span = document.createElement("span");
-      span.textContent = String(7 + r);
+      // Display-space labels matching game.js renderBoard (row + 1) after
+      // slot 2's 180° rotation. Both seats' territory = display rows 6–9.
+      const absRow = ABSOLUTE_ROWS[r];
+      const displayRow = slot === 2 ? (9 - absRow) : absRow;
+      span.textContent = String(displayRow + 1);
       rowLabels.appendChild(span);
     }
   }
