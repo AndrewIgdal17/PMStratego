@@ -1,12 +1,10 @@
-import { RANK } from './pieces.js';
-
-export const COMBAT_OUTCOME = {
-  ATTACKER_WINS: 'ATTACKER_WINS',
-  DEFENDER_WINS: 'DEFENDER_WINS',
-  TIE: 'TIE',
+import { RANK } from "./pieces.js";
+const COMBAT_OUTCOME = {
+  ATTACKER_WINS: "ATTACKER_WINS",
+  DEFENDER_WINS: "DEFENDER_WINS",
+  TIE: "TIE"
 };
-
-export function resolveCombat(attackerRank, defenderRank) {
+function resolveCombat(attackerRank, defenderRank) {
   if (defenderRank === RANK.FLAG) {
     return COMBAT_OUTCOME.ATTACKER_WINS;
   }
@@ -21,3 +19,7 @@ export function resolveCombat(attackerRank, defenderRank) {
   }
   return attackerRank < defenderRank ? COMBAT_OUTCOME.ATTACKER_WINS : COMBAT_OUTCOME.DEFENDER_WINS;
 }
+export {
+  COMBAT_OUTCOME,
+  resolveCombat
+};

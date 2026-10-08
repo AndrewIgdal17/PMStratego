@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { violatesTwoSquareRule } from '../../src/rules/twoSquareRule.js';
+import { violatesTwoSquareRule } from '../../src/rules/twoSquareRule.ts';
 
 test('allows the first three shuttles between two squares', () => {
   const history = [

@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test test/**/*.test.js && vitest run src",
     "test:deno": "deno test supabase/functions/_shared/information-warfare.test.ts",
     "sync-rules": "bash scripts/sync-rules.sh"
   },

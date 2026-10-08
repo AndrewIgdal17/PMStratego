@@ -1,10 +1,21 @@
-import { squareKey } from './board.js';
-import { RANK } from './pieces.js';
-import { validateMove } from './movement.js';
-import { resolveCombat, COMBAT_OUTCOME } from './combat.js';
-import { violatesTwoSquareRule } from './twoSquareRule.js';
+import type { CombatResult, GameState, HistoryEntry, RulesPiece, Slot, Square } from '../types.ts';
+import { squareKey } from './board.ts';
+import { RANK } from './pieces.ts';
+import { validateMove } from './movement.ts';
+import { resolveCombat, COMBAT_OUTCOME } from './combat.ts';
+import { violatesTwoSquareRule } from './twoSquareRule.ts';
 
-export function applyMove(state, { playerSlot, from, to }) {
+export function applyMove(
+  state: GameState,
+  { playerSlot, from, to }: { playerSlot: Slot; from: Square; to: Square },
+):
+  | { ok: false; reason: string }
+  | {
+      ok: true;
+      combatResult: CombatResult;
+      winnerSlot: Slot | null;
+      newState: GameState;
+    } {
   if (state.status !== 'active') {
     return { ok: false, reason: 'GAME_NOT_ACTIVE' };
   }
@@ -28,13 +39,13 @@ export function applyMove(state, { playerSlot, from, to }) {
 
   const defender = state.pieces.find((p) => p.alive && p.row === to.row && p.col === to.col) || null;
   const newPieces = state.pieces.map((p) => ({ ...p }));
-  const moverPiece = newPieces.find((p) => p.id === mover.id);
+  const moverPiece = newPieces.find((p) => p.id === mover.id)!;
 
-  let combatResult = null;
-  let winnerSlot = null;
+  let combatResult: CombatResult = null;
+  let winnerSlot: Slot | null = null;
 
   if (defender) {
-    const defenderPiece = newPieces.find((p) => p.id === defender.id);
+    const defenderPiece = newPieces.find((p) => p.id === defender.id)!;
     const outcome = resolveCombat(moverPiece.rank, defenderPiece.rank);
     combatResult = {
       outcome,
@@ -62,10 +73,10 @@ export function applyMove(state, { playerSlot, from, to }) {
     moverPiece.col = to.col;
   }
 
-  const newHistory = { ...state.moveHistoryByPlayer };
+  const newHistory: GameState['moveHistoryByPlayer'] = { ...state.moveHistoryByPlayer };
   newHistory[playerSlot] = [...history, { pieceId: mover.id, from: fromKey, to: toKey }];
 
-  const nextTurnSlot = playerSlot === 1 ? 2 : 1;
+  const nextTurnSlot: Slot = playerSlot === 1 ? 2 : 1;
   const nextPlayerHistory = newHistory[nextTurnSlot] || [];
   if (!winnerSlot && !hasAnyLegalMove(newPieces, nextTurnSlot, nextPlayerHistory)) {
     winnerSlot = playerSlot;
@@ -85,11 +96,15 @@ export function applyMove(state, { playerSlot, from, to }) {
   };
 }
 
-export function getLegalMoves(pieces, playerSlot, history) {
+export function getLegalMoves(
+  pieces: RulesPiece[],
+  playerSlot: Slot,
+  history: HistoryEntry[],
+): { pieceId: string; from: Square; to: Square }[] {
   const movablePieces = pieces.filter(
     (p) => p.alive && p.playerSlot === playerSlot && p.rank !== RANK.BOMB && p.rank !== RANK.FLAG,
   );
-  const moves = [];
+  const moves: { pieceId: string; from: Square; to: Square }[] = [];
   for (const piece of movablePieces) {
     for (let row = 0; row < 10; row++) {
       for (let col = 0; col < 10; col++) {
@@ -105,6 +120,6 @@ export function getLegalMoves(pieces, playerSlot, history) {
   return moves;
 }
 
-function hasAnyLegalMove(pieces, playerSlot, history) {
+function hasAnyLegalMove(pieces: RulesPiece[], playerSlot: Slot, history: HistoryEntry[]): boolean {
   return getLegalMoves(pieces, playerSlot, history).length > 0;
 }

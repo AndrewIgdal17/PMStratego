@@ -1,17 +1,18 @@
-import { isOnBoard, isLake } from './board.js';
-import { RANK, isMovableRank } from './pieces.js';
+import type { RulesPiece, Slot, Square } from '../types.ts';
+import { isOnBoard, isLake } from './board.ts';
+import { RANK, isMovableRank } from './pieces.ts';
 
-export function pieceAt(pieces, row, col) {
+export function pieceAt(pieces: RulesPiece[], row: number, col: number): RulesPiece | null {
   return pieces.find((p) => p.alive && p.row === row && p.col === col) || null;
 }
 
-export function isOrthogonalAdjacent(from, to) {
+export function isOrthogonalAdjacent(from: Square, to: Square): boolean {
   const rowDiff = Math.abs(from.row - to.row);
   const colDiff = Math.abs(from.col - to.col);
   return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
 }
 
-function isClearScoutPath(pieces, from, to) {
+function isClearScoutPath(pieces: RulesPiece[], from: Square, to: Square): boolean {
   const sameRow = from.row === to.row;
   const sameCol = from.col === to.col;
   if (!sameRow && !sameCol) return false;
@@ -31,7 +32,7 @@ function isClearScoutPath(pieces, from, to) {
   return true;
 }
 
-export function isLegalDestination(pieces, mover, from, to) {
+export function isLegalDestination(pieces: RulesPiece[], mover: RulesPiece, from: Square, to: Square): boolean {
   if (!isOnBoard(to.row, to.col)) return false;
   if (isLake(to.row, to.col)) return false;
   if (from.row === to.row && from.col === to.col) return false;
@@ -45,11 +46,16 @@ export function isLegalDestination(pieces, mover, from, to) {
   return isOrthogonalAdjacent(from, to);
 }
 
-export function isMovablePiece(piece) {
+export function isMovablePiece(piece: RulesPiece): boolean {
   return isMovableRank(piece.rank);
 }
 
-export function validateMove(pieces, playerSlot, from, to) {
+export function validateMove(
+  pieces: RulesPiece[],
+  playerSlot: Slot,
+  from: Square,
+  to: Square,
+): { valid: false; reason: string } | { valid: true; mover: RulesPiece } {
   const mover = pieceAt(pieces, from.row, from.col);
   if (!mover) return { valid: false, reason: 'NO_PIECE_AT_SOURCE' };
   if (mover.playerSlot !== playerSlot) return { valid: false, reason: 'NOT_YOUR_PIECE' };

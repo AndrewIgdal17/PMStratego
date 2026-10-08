@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BOARD_SIZE, isOnBoard, isLake, squareKey } from '../../src/rules/board.js';
+import { BOARD_SIZE, isOnBoard, isLake, squareKey } from '../../src/rules/board.ts';
 
 test('board is 10x10', () => {
   assert.equal(BOARD_SIZE, 10);

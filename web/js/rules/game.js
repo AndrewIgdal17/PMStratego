@@ -1,38 +1,31 @@
-import { squareKey } from './board.js';
-import { RANK } from './pieces.js';
-import { validateMove } from './movement.js';
-import { resolveCombat, COMBAT_OUTCOME } from './combat.js';
-import { violatesTwoSquareRule } from './twoSquareRule.js';
-
-export function applyMove(state, { playerSlot, from, to }) {
-  if (state.status !== 'active') {
-    return { ok: false, reason: 'GAME_NOT_ACTIVE' };
+import { squareKey } from "./board.js";
+import { RANK } from "./pieces.js";
+import { validateMove } from "./movement.js";
+import { resolveCombat, COMBAT_OUTCOME } from "./combat.js";
+import { violatesTwoSquareRule } from "./twoSquareRule.js";
+function applyMove(state, { playerSlot, from, to }) {
+  if (state.status !== "active") {
+    return { ok: false, reason: "GAME_NOT_ACTIVE" };
   }
   if (state.currentTurnSlot !== playerSlot) {
-    return { ok: false, reason: 'NOT_YOUR_TURN' };
+    return { ok: false, reason: "NOT_YOUR_TURN" };
   }
-
   const validation = validateMove(state.pieces, playerSlot, from, to);
   if (!validation.valid) {
     return { ok: false, reason: validation.reason };
   }
-
   const mover = validation.mover;
   const fromKey = squareKey(from.row, from.col);
   const toKey = squareKey(to.row, to.col);
   const history = state.moveHistoryByPlayer[playerSlot] || [];
-
   if (violatesTwoSquareRule(history, mover.id, fromKey, toKey)) {
-    return { ok: false, reason: 'TWO_SQUARE_RULE' };
+    return { ok: false, reason: "TWO_SQUARE_RULE" };
   }
-
   const defender = state.pieces.find((p) => p.alive && p.row === to.row && p.col === to.col) || null;
   const newPieces = state.pieces.map((p) => ({ ...p }));
   const moverPiece = newPieces.find((p) => p.id === mover.id);
-
   let combatResult = null;
   let winnerSlot = null;
-
   if (defender) {
     const defenderPiece = newPieces.find((p) => p.id === defender.id);
     const outcome = resolveCombat(moverPiece.rank, defenderPiece.rank);
@@ -40,13 +33,11 @@ export function applyMove(state, { playerSlot, from, to }) {
       outcome,
       attackerRank: moverPiece.rank,
       defenderRank: defenderPiece.rank,
-      defenderPieceId: defenderPiece.id,
+      defenderPieceId: defenderPiece.id
     };
-
     if (defenderPiece.rank === RANK.FLAG) {
       winnerSlot = playerSlot;
     }
-
     if (outcome === COMBAT_OUTCOME.ATTACKER_WINS) {
       defenderPiece.alive = false;
       moverPiece.row = to.row;
@@ -61,16 +52,13 @@ export function applyMove(state, { playerSlot, from, to }) {
     moverPiece.row = to.row;
     moverPiece.col = to.col;
   }
-
   const newHistory = { ...state.moveHistoryByPlayer };
   newHistory[playerSlot] = [...history, { pieceId: mover.id, from: fromKey, to: toKey }];
-
   const nextTurnSlot = playerSlot === 1 ? 2 : 1;
   const nextPlayerHistory = newHistory[nextTurnSlot] || [];
   if (!winnerSlot && !hasAnyLegalMove(newPieces, nextTurnSlot, nextPlayerHistory)) {
     winnerSlot = playerSlot;
   }
-
   return {
     ok: true,
     combatResult,
@@ -79,15 +67,14 @@ export function applyMove(state, { playerSlot, from, to }) {
       ...state,
       pieces: newPieces,
       currentTurnSlot: winnerSlot ? state.currentTurnSlot : nextTurnSlot,
-      status: winnerSlot ? 'finished' : 'active',
-      moveHistoryByPlayer: newHistory,
-    },
+      status: winnerSlot ? "finished" : "active",
+      moveHistoryByPlayer: newHistory
+    }
   };
 }
-
-export function getLegalMoves(pieces, playerSlot, history) {
+function getLegalMoves(pieces, playerSlot, history) {
   const movablePieces = pieces.filter(
-    (p) => p.alive && p.playerSlot === playerSlot && p.rank !== RANK.BOMB && p.rank !== RANK.FLAG,
+    (p) => p.alive && p.playerSlot === playerSlot && p.rank !== RANK.BOMB && p.rank !== RANK.FLAG
   );
   const moves = [];
   for (const piece of movablePieces) {
@@ -104,7 +91,10 @@ export function getLegalMoves(pieces, playerSlot, history) {
   }
   return moves;
 }
-
 function hasAnyLegalMove(pieces, playerSlot, history) {
   return getLegalMoves(pieces, playerSlot, history).length > 0;
 }
+export {
+  applyMove,
+  getLegalMoves
+};

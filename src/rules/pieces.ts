@@ -1,3 +1,5 @@
+import type { Rank } from '../types.ts';
+
 export const RANK = {
   MARSHAL: 1,
   GENERAL: 2,
@@ -11,9 +13,9 @@ export const RANK = {
   SPY: 10,
   BOMB: 'BOMB',
   FLAG: 'FLAG',
-};
+} as const;
 
-export const ARMY_COMPOSITION = [
+export const ARMY_COMPOSITION: { rank: Rank; count: number }[] = [
   { rank: RANK.MARSHAL, count: 1 },
   { rank: RANK.GENERAL, count: 1 },
   { rank: RANK.COLONEL, count: 2 },
@@ -30,6 +32,6 @@ export const ARMY_COMPOSITION = [
 
 export const ARMY_SIZE = ARMY_COMPOSITION.reduce((sum, entry) => sum + entry.count, 0);
 
-export function isMovableRank(rank) {
+export function isMovableRank(rank: Rank): boolean {
   return rank !== RANK.BOMB && rank !== RANK.FLAG;
 }

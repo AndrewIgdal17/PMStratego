@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pieceAt, isOrthogonalAdjacent, isLegalDestination, isMovablePiece, validateMove } from '../../src/rules/movement.js';
-import { RANK } from '../../src/rules/pieces.js';
+import { pieceAt, isOrthogonalAdjacent, isLegalDestination, isMovablePiece, validateMove } from '../../src/rules/movement.ts';
+import { RANK } from '../../src/rules/pieces.ts';
 
 function piece(overrides) {
   return { id: 'p1', playerSlot: 1, rank: RANK.SERGEANT, row: 6, col: 5, alive: true, ...overrides };

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RANK, ARMY_COMPOSITION, ARMY_SIZE, isMovableRank } from '../../src/rules/pieces.js';
+import { RANK, ARMY_COMPOSITION, ARMY_SIZE, isMovableRank } from '../../src/rules/pieces.ts';
 
 test('army composition totals 40 pieces', () => {
   assert.equal(ARMY_SIZE, 40);

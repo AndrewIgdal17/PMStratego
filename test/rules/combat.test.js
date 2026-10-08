@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCombat, COMBAT_OUTCOME } from '../../src/rules/combat.js';
-import { RANK } from '../../src/rules/pieces.js';
+import { resolveCombat, COMBAT_OUTCOME } from '../../src/rules/combat.ts';
+import { RANK } from '../../src/rules/pieces.ts';
 
 test('lower rank number beats higher rank number', () => {
   assert.equal(resolveCombat(RANK.GENERAL, RANK.COLONEL), COMBAT_OUTCOME.ATTACKER_WINS);

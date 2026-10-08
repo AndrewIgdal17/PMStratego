@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyMove, getLegalMoves } from '../../src/rules/game.js';
-import { RANK } from '../../src/rules/pieces.js';
+import { applyMove, getLegalMoves } from '../../src/rules/game.ts';
+import { RANK } from '../../src/rules/pieces.ts';
 
 function baseState(pieces, overrides = {}) {
   return {
