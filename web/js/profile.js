@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { renderNavAuth, getUsername, isLoggedIn } from "./auth.js";
+import { escapeHtml } from "./escapeHtml.js";
 import { materialSparkline } from "./gameSummary.js";
 
 renderNavAuth(document.getElementById("nav-auth"));
@@ -164,7 +165,7 @@ function renderHeader(player, stats) {
   const totalGames = stats ? (stats.wins + stats.losses + stats.draws) : 0;
   const winRate = totalGames > 0 ? ((stats.wins / totalGames) * 100).toFixed(1) : "0.0";
   el.innerHTML = `
-    <h2>${player.username}</h2>
+    <h2>${escapeHtml(player.username)}</h2>
     <div class="profile-meta">
       <span class="rating-badge ${player.rating_provisional ? "provisional" : ""}">${player.rating} ${player.rating_provisional ? "(Provisional)" : ""}</span>
       ${stats?.archetype ? `<span class="archetype-badge" data-tooltip="Playstyle archetype — recalculated every 5 games based on your stat pattern">${stats.archetype.replace("_", " ")}</span>` : ""}
@@ -547,7 +548,7 @@ async function loadHistory(username) {
   const pills = reversed.map((g) => {
     const result = g.winner_slot === g.player_slot ? "W" : (g.winner_slot ? "L" : "D");
     const cls = result === "W" ? "pill-win" : (result === "L" ? "pill-loss" : "pill-draw");
-    const tooltip = `vs ${g.opponent_username || "Anon"} (${g.turn_number || "?"} moves)`;
+    const tooltip = `vs ${escapeHtml(g.opponent_username || "Anon")} (${g.turn_number || "?"} moves)`;
     return `<span class="form-pill ${cls}" data-tooltip="${tooltip}">${result}</span>`;
   }).join("");
   const sparkline = `<div class="form-sparkline"><span class="form-label">Last ${data.length}:</span>${pills}</div>`;
@@ -562,7 +563,7 @@ async function loadHistory(username) {
           const result = g.winner_slot === g.player_slot ? "Win" : (g.winner_slot ? "Loss" : "Draw");
           const cls = result === "Win" ? "win" : (result === "Loss" ? "loss" : "draw");
           return `<tr class="clickable-row" onclick="location.href='game-detail.html?id=${g.game_id}&slot=${g.player_slot}'">
-            <td><a href="profile.html?user=${encodeURIComponent(g.opponent_username || "Anonymous")}" onclick="event.stopPropagation()">${g.opponent_username || "Anonymous"}</a></td>
+            <td><a href="profile.html?user=${encodeURIComponent(g.opponent_username || "Anonymous")}" onclick="event.stopPropagation()">${escapeHtml(g.opponent_username || "Anonymous")}</a></td>
             <td class="${cls}">${result}</td>
             <td>${g.turn_number || "—"}</td>
             <td class="curve-cell" data-game-id="${g.game_id}" data-player-slot="${g.player_slot}">—</td>

@@ -1,5 +1,6 @@
 import { supabase } from "./supabaseClient.js";
 import { renderNavAuth } from "./auth.js";
+import { escapeHtml } from "./escapeHtml.js";
 
 renderNavAuth(document.getElementById("nav-auth"));
 
@@ -43,22 +44,22 @@ async function loadGameDetail(id) {
 }
 
 function slotLabel(slot, data) {
-  return slot === 1 ? data.player1_username : data.player2_username;
+  return escapeHtml(slot === 1 ? data.player1_username : data.player2_username);
 }
 
 function renderHeader(data) {
   const winner = data.winner_slot ? slotLabel(data.winner_slot, data) : "Draw";
   const el = document.getElementById("game-header");
   el.innerHTML = `
-    <h2>${data.player1_username} vs ${data.player2_username}</h2>
+    <h2>${escapeHtml(data.player1_username)} vs ${escapeHtml(data.player2_username)}</h2>
     <p class="game-detail-subtitle" data-tooltip="Rated human game — stats computed at game end">
       ${winner === "Draw" ? "Draw" : `${winner} wins`} · ${data.turn_number ?? "—"} moves · ${new Date(data.created_at).toLocaleString()}
     </p>
     <p class="game-detail-view-toggle">
       Viewing as:
-      <a href="?id=${gameId}&slot=1" class="${viewSlot === 1 ? "active" : ""}">${data.player1_username}</a>
+      <a href="?id=${gameId}&slot=1" class="${viewSlot === 1 ? "active" : ""}">${escapeHtml(data.player1_username)}</a>
       ·
-      <a href="?id=${gameId}&slot=2" class="${viewSlot === 2 ? "active" : ""}">${data.player2_username}</a>
+      <a href="?id=${gameId}&slot=2" class="${viewSlot === 2 ? "active" : ""}">${escapeHtml(data.player2_username)}</a>
     </p>
   `;
 }

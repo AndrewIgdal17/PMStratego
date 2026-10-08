@@ -1,3 +1,5 @@
+import { escapeHtml } from "./escapeHtml.js";
+
 const STORAGE_KEY_TOKEN = "stratego:authToken";
 const STORAGE_KEY_USER = "stratego:username";
 
@@ -28,7 +30,7 @@ export function renderNavAuth(navEl) {
   if (!navEl) return;
   if (isLoggedIn()) {
     navEl.innerHTML = `
-      <a href="profile.html?user=${encodeURIComponent(getUsername())}" class="nav-user">${getUsername()}</a>
+      <a href="profile.html?user=${encodeURIComponent(getUsername())}" class="nav-user">${escapeHtml(getUsername())}</a>
       <button id="logout-btn" class="nav-link-btn">Log out</button>
     `;
     navEl.querySelector("#logout-btn").addEventListener("click", logout);

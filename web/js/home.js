@@ -1,4 +1,5 @@
 import { supabase, callFunction } from "./supabaseClient.js";
+import { escapeHtml } from "./escapeHtml.js";
 import { renderNavAuth } from "./auth.js";
 import { pickBotFormationPlacements } from "./bot.js";
 
@@ -157,7 +158,7 @@ async function loadLeaderboard(category = "rating") {
     body.innerHTML = data.map((p, i) => `
       <tr>
         <td>${i + 1}</td>
-        <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${p.username}</a></td>
+        <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${escapeHtml(p.username)}</a></td>
         <td>${p.rating}</td>
         <td>${p.wins}/${p.losses}</td>
         <td>${p.win_rate}%</td>
@@ -178,7 +179,7 @@ async function loadLeaderboard(category = "rating") {
   body.innerHTML = data.map((p, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${p.username}</a></td>
+      <td><a href="profile.html?user=${encodeURIComponent(p.username)}">${escapeHtml(p.username)}</a></td>
       <td colspan="4">${p.value}${suffix}</td>
     </tr>
   `).join("");
