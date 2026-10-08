@@ -11,7 +11,7 @@ interface PieceTokenProps {
   color?: string;
 }
 
-/** Same darken as web/js/token.js: subtract 0x20 from each sRGB channel. */
+/** Darken a player color by subtracting 0x20 from each sRGB channel. */
 function darkenColor(hex: string): string {
   const r = Math.max(0, parseInt(hex.slice(1, 3), 16) - 0x20);
   const g = Math.max(0, parseInt(hex.slice(3, 5), 16) - 0x20);

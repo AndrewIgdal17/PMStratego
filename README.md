@@ -30,16 +30,14 @@ npx supabase db reset   # applies supabase/migrations/
 npx supabase functions serve --no-verify-jwt   # serves all Edge Functions locally
 ```
 
-**Frontend** (any static file server works):
+**Frontend** (Vite + React):
 
 ```bash
-npx http-server web -p 8080
+npm run dev       # local dev server
+npm run build     # production bundle in dist/
 ```
 
-Before the frontend can talk to your local (or deployed) Supabase project,
-fill in `web/js/supabaseClient.js` with the `SUPABASE_URL` and anon key
-printed by `npx supabase status` (local) or found on the project's API
-settings page (production).
+The Supabase URL and anon key live in `src/lib/supabaseClient.ts`.
 
 ## Deploying
 
@@ -55,8 +53,9 @@ npx supabase functions deploy # deploys all functions in supabase/functions/
 
 1. Push this repo to GitHub.
 2. In the Render dashboard, create a new Static Site from this repo (or run
-   `render blueprint launch` if using the Render CLI) — `render.yaml` already
-   specifies `./web` as the publish path with no build step.
+   `render blueprint launch` if using the Render CLI) — `render.yaml` publishes
+   `./dist` after `npm ci && npm run build`, and rewrites SPA routes (including
+   old `*.html` invite links) to `index.html`.
 3. Every push to the deployed branch auto-redeploys; there is no server
    process to spin down or wake up.
 

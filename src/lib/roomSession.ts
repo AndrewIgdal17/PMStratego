@@ -1,6 +1,6 @@
 import type { Slot } from '../types.ts';
 
-/** Same default as web/js/token.js. Opponent never sees this; it is local only. */
+/** Default piece color. Opponent never sees this; it is local only. */
 export const DEFAULT_PLAYER_COLOR = '#4a7a4a';
 
 function roomKey(roomCode: string, field: 'token' | 'slot' | 'botToken' | 'color'): string {

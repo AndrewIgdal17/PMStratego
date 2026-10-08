@@ -2,6 +2,22 @@ services:
   - type: web
     name: stratego
     runtime: static
-    staticPublishPath: ./web
-    buildCommand: "echo 'no build step'"
+    staticPublishPath: ./dist
+    buildCommand: "npm ci && npm run build"
     pullRequestPreviewsEnabled: false
+    routes:
+      - type: rewrite
+        source: /setup.html
+        destination: /setup
+      - type: rewrite
+        source: /game.html
+        destination: /game
+      - type: rewrite
+        source: /profile.html
+        destination: /profile
+      - type: rewrite
+        source: /game-detail.html
+        destination: /game-detail
+      - type: rewrite
+        source: "/*"
+        destination: /index.html
