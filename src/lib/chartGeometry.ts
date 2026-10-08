@@ -22,6 +22,23 @@ export function chartPoints(
   return { points, zeroY: yPos(0), min, max };
 }
 
+// Sparkline and LineChart leave a wider left gutter for axis labels.
+// Y scale stays chartPoints; X is shifted so the right pad is unchanged.
+export function labeledChartPoints(
+  series: number[],
+  width: number,
+  height: number,
+  padding: number,
+  labelPad: number,
+): { points: ChartPoint[]; zeroY: number; min: number; max: number } {
+  const shift = labelPad - padding;
+  const scaled = chartPoints(series, width - shift, height, padding);
+  return {
+    ...scaled,
+    points: scaled.points.map((point) => ({ x: point.x + shift, y: point.y })),
+  };
+}
+
 // Slot 1 sees the stored player-1 curve. Slot 2 sees the negation.
 export function perspectiveCurve(curveP1: number[], slot: Slot): number[] {
   return slot === 1 ? curveP1 : curveP1.map((v) => -v);

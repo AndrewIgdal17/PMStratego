@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chartPoints, perspectiveCurve } from './chartGeometry';
+import { chartPoints, labeledChartPoints, perspectiveCurve } from './chartGeometry';
 
 describe('perspectiveCurve', () => {
   it('returns the player-1 curve as-is for slot 1', () => {
@@ -33,5 +33,16 @@ describe('chartPoints', () => {
     expect(zeroY).toBe(40);
     expect(points[0]?.y).toBe(20);
     expect(points[1]?.y).toBe(0);
+  });
+});
+
+describe('labeledChartPoints', () => {
+  it('keeps the y scale and shifts x into the label gutter', () => {
+    const { points, zeroY, min, max } = labeledChartPoints([0, 4], 180, 50, 4, 18);
+    expect(min).toBe(0);
+    expect(max).toBe(4);
+    expect(points.map((point) => point.x)).toEqual([18, 176]);
+    expect(zeroY).toBe(46);
+    expect(points[1]?.y).toBe(4);
   });
 });
