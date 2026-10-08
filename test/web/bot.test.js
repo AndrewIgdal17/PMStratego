@@ -15,8 +15,8 @@ test('mapFormationToAbsolute keeps a formation\'s back rank at the bot\'s true b
   ];
   const placements = mapFormationToAbsolute(cells, 2);
   assert.deepEqual(placements, [
-    { rank: '9', row: 3, col: 0 },     // slot 2's front row is absolute row 3
-    { rank: 'FLAG', row: 0, col: 9 },  // slot 2's back row is absolute row 0
+    { rank: '9', row: 3, col: 9 },     // local col 0 mirrors to absolute col 9 for slot 2
+    { rank: 'FLAG', row: 0, col: 0 },  // local col 9 mirrors to absolute col 0 for slot 2
   ]);
 });
 

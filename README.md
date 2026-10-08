@@ -9,10 +9,16 @@ Repo: https://github.com/AndrewIgdal17/PMStratego.git
 
 ## Local development
 
-**Rules engine tests** (no external dependencies):
+**Rules engine + bot tests** (no external dependencies):
 
 ```bash
-npm test
+npm test          # Node test suite (test/rules + test/web)
+```
+
+**Information warfare tests** (requires Deno):
+
+```bash
+npm run test:deno
 ```
 
 **Supabase backend** (requires Docker Desktop running, and the Supabase CLI
