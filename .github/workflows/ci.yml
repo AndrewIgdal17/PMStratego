@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-node:
+    name: Node + Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Node tests (rules + bot)
+        run: npm test
+
+      - name: Vitest (React + unit tests)
+        run: npx vitest run
+
+      - name: Build
+        run: npm run build
+
+  test-deno:
+    name: Deno (Edge Functions)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Deno tests (information warfare)
+        run: deno test supabase/functions/_shared/information-warfare.test.ts
